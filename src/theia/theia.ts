@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as path from "path";
 import simpleGit, { GitConfigScope } from "simple-git";
 import { hostname } from "os";
 import { cloneByGivenURL } from "../participation/cloning.service";
@@ -32,7 +33,7 @@ export async function initTheia() {
     vscode.commands.executeCommand("setContext", "scorpio.theia.givenExercise", true);
   }
 
-  // clone repository
+  // clone repository and set it as the workspace folder
   if (theiaEnv.GIT_URI) {
     const workspaceFolderUri = getWorkspaceFolder();
     if (!workspaceFolderUri) {
@@ -40,7 +41,12 @@ export async function initTheia() {
       return;
     }
 
-    cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath);
+    // Skip if the workspace is already the cloned repo (window reloads after openFolder)
+    const repoName = path.basename(theiaEnv.GIT_URI.pathname, ".git");
+    if (path.basename(workspaceFolderUri.fsPath) !== repoName) {
+      const clonePath = await cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath);
+      await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(clonePath));
+    }
   }
 
   // set git config values
