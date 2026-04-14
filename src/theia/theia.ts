@@ -32,7 +32,7 @@ export async function initTheia() {
     vscode.commands.executeCommand("setContext", "scorpio.theia.givenExercise", true);
   }
 
-  // clone repository
+  // Materialize the repository directly into the existing Theia workspace.
   if (theiaEnv.GIT_URI) {
     const workspaceFolderUri = getWorkspaceFolder();
     if (!workspaceFolderUri) {
@@ -40,7 +40,9 @@ export async function initTheia() {
       return;
     }
 
-    cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath);
+    await cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath, {
+      mode: "workspace-root",
+    });
   }
 
   // set git config values

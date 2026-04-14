@@ -26,7 +26,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // Blocks the activation until the credentials are loaded
   await loadTheiaEnv();
 
-  initTheia();
+  await initTheia();
 
   initSettings();
   const realtimeSync = new RealtimeSyncService();
@@ -188,7 +188,7 @@ function registerCommands(
     vscode.commands.registerCommand("scorpio.displayedExercise.clone", async () => {
       try {
         await cloneCurrentExercise();
-        // In Theia mode the repo is cloned into the workspace as a subfolder,
+        // In Theia mode the repo is materialized into the workspace root,
         // so we can detect it immediately and update repoKey without a round-trip.
         await detectRepoCourseAndExercise();
         await realtimeSync.refreshNow();
