@@ -1,4 +1,4 @@
-import { artemisRequestText, artemisRequest } from "../infra/http/artemis-http.client";
+import { artemisRequest } from "../infra/http/artemis-http.client";
 
 export async function authenticateToken(
   username: string,
@@ -23,27 +23,4 @@ export async function authenticateToken(
   }
 
   return response.json();
-}
-
-export function retrieveVcsAccessToken(token: string, participationId: number): Promise<string> {
-  return getVcsAccessToken(token, participationId, "GET").catch(() => {
-    return getVcsAccessToken(token, participationId, "PUT");
-  });
-}
-
-function getVcsAccessToken(
-  token: string,
-  participationId: number,
-  method: "GET" | "PUT",
-): Promise<string> {
-  return artemisRequestText("/api/core/account/participation-vcs-access-token", {
-    method,
-    token,
-    headers: {
-      "Content-Type": "application/json",
-    },
-    query: {
-      participationId,
-    },
-  });
 }
