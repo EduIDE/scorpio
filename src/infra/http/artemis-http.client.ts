@@ -5,7 +5,7 @@ type QueryValue = string | number | boolean | undefined;
 type ArtemisRequestOptions = {
   method?: string;
   token?: string;
-  body?: BodyInit | null;
+  body?: string | null;
   query?: Record<string, QueryValue>;
   headers?: Record<string, string>;
 };
@@ -43,36 +43,3 @@ export async function artemisRequest(
   });
 }
 
-export async function artemisRequestJson<T>(
-  path: string,
-  options: ArtemisRequestOptions = {},
-): Promise<T> {
-  const response = await artemisRequest(path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers ?? {}),
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP error! status: ${response.status} message: ${errorText}`);
-  }
-
-  return (await response.json()) as T;
-}
-
-export async function artemisRequestText(
-  path: string,
-  options: ArtemisRequestOptions = {},
-): Promise<string> {
-  const response = await artemisRequest(path, options);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP error! status: ${response.status} message: ${errorText}`);
-  }
-
-  return response.text();
-}

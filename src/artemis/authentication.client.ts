@@ -22,5 +22,5 @@ export async function authenticateToken(
     throw new Error(`HTTP error with status: ${response.status} ${errorText}`);
   }
 
-  return response.json();
+  return (await response.json()) as { access_token: string };
 }
