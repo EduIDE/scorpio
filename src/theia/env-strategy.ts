@@ -19,14 +19,20 @@ const ENV_KEYS = [
   "GIT_MAIL",
 ] as const satisfies Array<string>;
 
+const REQUIRED_ENV_KEYS = ["ARTEMIS_TOKEN", "ARTEMIS_URL", "GIT_URI"] as const;
+
 export interface TheiaEnvStrategy {
   load(): Promise<TheiaEnv>;
 }
 
-function parseTheiaEnv(env: Record<string, string | undefined>): TheiaEnv {
+function parseTheiaEnv(
+  env: Record<string, string | undefined>,
+  fromDataBridge: boolean = false,
+): TheiaEnv {
   const gitUriString = env["GIT_URI"];
+  const hasRequiredKeys = !!(env["ARTEMIS_TOKEN"] && env["ARTEMIS_URL"] && gitUriString);
   return {
-    THEIA_FLAG: env["THEIA"] !== undefined,
+    THEIA_FLAG: env["THEIA"] !== undefined || (fromDataBridge && hasRequiredKeys),
     ARTEMIS_TOKEN: env["ARTEMIS_TOKEN"],
     ARTEMIS_URL: env["ARTEMIS_URL"],
     GIT_URI: gitUriString ? new URL(gitUriString) : undefined,
@@ -121,9 +127,9 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
 
       // Check if we have ALL environment variables available
       // We won't act until all environment variables are available.
-      if (ENV_KEYS.every((key) => Boolean(env[key]))) {
+      if (REQUIRED_ENV_KEYS.every((key) => Boolean(env[key]))) {
         this.outputChannel.appendLine("Environment variables received from bridge");
-        return parseTheiaEnv(env);
+        return parseTheiaEnv(env, true);
       }
 
       this.outputChannel.appendLine(
