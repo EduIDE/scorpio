@@ -1,10 +1,11 @@
 import * as vscode from "vscode";
 import simpleGit, { GitConfigScope } from "simple-git";
 import { hostname } from "os";
+import * as path from "path";
+import * as fs from "fs/promises";
 import { cloneByGivenURL } from "../participation/cloning.service";
 import { createTheiaEnvStrategy, TheiaEnv } from "./env-strategy";
 
-// Mutable theiaEnv that gets populated after loading
 export let theiaEnv: TheiaEnv = {
   THEIA_FLAG: false,
   ARTEMIS_TOKEN: undefined,
@@ -14,10 +15,6 @@ export let theiaEnv: TheiaEnv = {
   GIT_MAIL: undefined,
 };
 
-/**
- * Loads the theia environment using the configured credential strategy.
- * Must be called before accessing theiaEnv.
- */
 export async function loadTheiaEnv(): Promise<void> {
   const strategy = await createTheiaEnvStrategy();
   theiaEnv = await strategy.load();
@@ -27,12 +24,52 @@ export function getWorkspaceFolder() {
   return vscode.workspace.workspaceFolders?.at(0)?.uri;
 }
 
+function normalizeRepoUrl(raw: string): string {
+  try {
+    const url = new URL(raw);
+    url.username = "";
+    url.password = "";
+    if (
+      (url.protocol === "https:" && url.port === "443") ||
+      (url.protocol === "http:" && url.port === "80")
+    ) {
+      url.port = "";
+    }
+    let normalized = url.origin.toLowerCase() + url.pathname;
+    normalized = normalized.replace(/\.git\/?$/, "");
+    normalized = normalized.replace(/\/+$/, "");
+    return normalized;
+  } catch {
+    return raw;
+  }
+}
+
+async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promise<boolean> {
+  const gitPath = path.join(workspacePath, ".git");
+  try {
+    await fs.stat(gitPath);
+  } catch {
+    return false;
+  }
+
+  try {
+    const git = simpleGit(workspacePath);
+    const remotes = await git.getRemotes(true);
+    const origin = remotes.find((r) => r.name === "origin");
+    if (!origin?.refs.fetch) {
+      return false;
+    }
+    return normalizeRepoUrl(origin.refs.fetch) === normalizeRepoUrl(targetUri.toString());
+  } catch {
+    return false;
+  }
+}
+
 export async function initTheia() {
   if (theiaEnv.GIT_URI) {
     vscode.commands.executeCommand("setContext", "scorpio.theia.givenExercise", true);
   }
 
-  // Materialize the repository directly into the existing Theia workspace.
   if (theiaEnv.GIT_URI) {
     const workspaceFolderUri = getWorkspaceFolder();
     if (!workspaceFolderUri) {
@@ -40,12 +77,19 @@ export async function initTheia() {
       return;
     }
 
-    await cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath, {
-      mode: "workspace-root",
-    });
+    const alreadyCloned = await isRepoAlreadyCloned(
+      workspaceFolderUri.fsPath,
+      theiaEnv.GIT_URI,
+    );
+    if (alreadyCloned) {
+      console.log("Repository already present, skipping auto-clone");
+    } else {
+      await cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath, {
+        mode: "workspace-root",
+      });
+    }
   }
 
-  // set git config values
   if (theiaEnv.THEIA_FLAG) {
     try {
       const git = simpleGit();
@@ -63,5 +107,4 @@ export async function initTheia() {
       console.error(`Error setting git config: ${e.message}`);
     }
   }
-  // login should trigger workspace detection
 }
