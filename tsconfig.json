@@ -1,27 +1,21 @@
 {
   "compilerOptions": {
-    "baseUrl": "./",
-    "paths": {
-      "@shared/*": ["shared/*"],
-      "@shared/models/*": ["shared/models/*"]
-    },
     "module": "Node16",
     "target": "ES2020",
     "outDir": "dist",
-    "lib": ["ES2020", "WebWorker"],
+    "lib": ["ES2020"],
     "sourceMap": true,
     "rootDir": "./",
-    "strict": true /* enable all strict type-checking options */,
+    "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    /* Additional Checks */
-    "noImplicitReturns": true /* Report error when not all code paths in function return a value. */,
-    "noFallthroughCasesInSwitch": true /* Report errors for fallthrough cases in switch statement. */,
-    "noUnusedParameters": true /* Report errors on unused parameters. */,
-    "noUnusedLocals": true /* Report errors on unused locals. */,
-    "noImplicitThis": true /* Report errors when 'this' is used in a non-class context. */,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedParameters": true,
+    "noUnusedLocals": true,
+    "noImplicitThis": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "shared/**/*"],
-  "exclude": ["node_modules", "webview"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
 }
