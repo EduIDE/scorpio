@@ -3,6 +3,7 @@
   "displayName": "Artemis - Scorpio",
   "version": "0.0.0",
   "description": "",
+  "private": true,
   "categories": [
     "Other"
   ],
@@ -15,61 +16,33 @@
   },
   "publisher": "tum-aet",
   "main": "./dist/extension.js",
-  "browser": "./dist/extension.js",
   "scripts": {
-    "install:all": "npm run install:webview && npm run install:extension",
-    "build": "npm run build:webview && npm run build:extension",
-    "watch": "npm run watch:webview && npm run watch:extension",
+    "install:all": "npm install --no-scripts",
+    "build": "webpack --mode production",
+    "watch": "webpack --watch",
     "install:extension": "npm install --no-scripts",
     "build:extension": "webpack --mode production",
     "compile:extension": "webpack",
     "watch:extension": "webpack --watch",
-    "install:webview": "cd webview && npm install",
-    "build:webview": "cd webview && npm run build",
-    "watch:webview": "cd webview && npm run watch",
-    "test": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
-    "pretest": "npm run compile:extension",
     "lint": "eslint src",
     "package": "vsce package",
     "vscode:prepublish": "npm run build",
-    "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. .",
-    "open-in-browser": "vscode-test-web --extensionDevelopmentPath=. .",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check"
   },
   "dependencies": {
-    "@stomp/stompjs": "^7.0.0",
-    "@vscode/vsce": "^3.1.1",
-    "fetch-cookie": "^3.0.1",
-    "markdown-it": "^14.1.1",
-    "os-browserify": "^0.3.0",
-    "path-browserify": "^1.0.1",
-    "simple-git": "^3.27.0",
-    "sockjs-client": "^1.6.1",
-    "ts-node": "^10.9.2",
-    "uuid": "^10.0.0",
-    "ws": "^8.18.0"
+    "simple-git": "^3.27.0"
   },
   "devDependencies": {
-    "@types/assert": "^1.5.11",
-    "@types/mocha": "^10.0.9",
-    "@types/sockjs-client": "^1.5.4",
-    "@types/stompjs": "^2.3.10",
+    "@types/node": "^22.0.0",
     "@types/vscode": "^1.94.0",
-    "@types/webpack-env": "^1.18.8",
-    "@types/ws": "^8.5.13",
     "@typescript-eslint/eslint-plugin": "^8.9.0",
     "@typescript-eslint/parser": "^8.9.0",
-    "@vscode/test-web": "^0.0.80",
-    "assert": "^2.1.0",
-    "dotenv": "^16.4.5",
+    "@vscode/vsce": "^3.1.1",
     "eslint": "^9.39.3",
-    "html-loader": "^5.1.0",
-    "mocha": "^10.7.3",
     "oxfmt": "^0.31.0",
-    "process": "^0.11.10",
-    "raw-loader": "^4.0.2",
     "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.5.4",
     "webpack": "^5.93.0",
     "webpack-cli": "^5.1.4"
@@ -98,89 +71,24 @@
           "editPresentation": "singlelineText",
           "type": "string",
           "format": "path"
-        },
-        "scorpio.?": {
-          "order": 99,
-          "description": "Wait and see",
-          "type": "boolean"
         }
       }
-    },
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "artemis-sidebar-view",
-          "title": "Artemis",
-          "icon": "media/icon.svg"
-        }
-      ]
-    },
-    "views": {
-      "artemis-sidebar-view": [
-        {
-          "type": "webview",
-          "id": "artemis-sidebar",
-          "name": "Scorpio",
-          "icon": "media/icon.svg",
-          "contextualTitle": "Artemis"
-        }
-      ]
     },
     "commands": [
       {
         "command": "scorpio.restart",
-        "category": "Artemis",
+        "category": "Scorpio",
         "title": "Restart Extension"
       },
       {
         "command": "scorpio.login",
-        "category": "Artemis",
+        "category": "Scorpio",
         "title": "Login"
       },
       {
         "command": "scorpio.logout",
-        "category": "Artemis",
+        "category": "Scorpio",
         "title": "Logout"
-      },
-      {
-        "command": "scorpio.displayExercise",
-        "category": "Artemis",
-        "title": "Display Exercise"
-      },
-      {
-        "command": "scorpio.displayedExercise.back",
-        "category": "Artemis",
-        "title": "Show Course Selection",
-        "icon": "$(arrow-left)"
-      },
-      {
-        "command": "scorpio.displayedExercise.clone",
-        "category": "Artemis",
-        "title": "Clone Displayed Exercise",
-        "icon": "$(repo-pull)"
-      },
-      {
-        "command": "scorpio.workspace.submit",
-        "category": "Artemis",
-        "title": "Submit Workspace",
-        "icon": "$(repo-push)"
-      },
-      {
-        "command": "scorpio.workspace.detectRepo",
-        "category": "Artemis",
-        "title": "Detect Repository in Workspace"
-      },
-      {
-        "command": "scorpio.workspace.sync",
-        "category": "Artemis",
-        "title": "Sync Problem Statement with Workspace",
-        "icon": "$(repo-sync)"
-      },
-      {
-        "command": "scorpio.sidebar.refresh",
-        "category": "Artemis",
-        "title": "Refresh Artemis Window",
-        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -192,64 +100,6 @@
         {
           "command": "scorpio.logout",
           "when": "scorpio.authenticated"
-        },
-        {
-          "command": "scorpio.displayExercise",
-          "when": "!scorpio.theia.givenExercise && scorpio.authenticated"
-        },
-        {
-          "command": "scorpio.displayedExercise.back",
-          "when": "false"
-        },
-        {
-          "command": "scorpio.displayedExercise.clone",
-          "when": "!scorpio.theia.givenExercise && scorpio.authenticated && scorpio.displayedKey"
-        },
-        {
-          "command": "scorpio.workspace.submit",
-          "when": "scorpio.repoKey"
-        },
-        {
-          "command": "scorpio.workspace.detectRepo",
-          "when": "scorpio.authenticated"
-        },
-        {
-          "command": "scorpio.workspace.sync",
-          "when": "scorpio.authenticated && scorpio.repoKey && scorpio.displayedKey not in scorpio.repoKey"
-        }
-      ],
-      "editor/title": [
-        {
-          "command": "scorpio.workspace.submit",
-          "group": "navigation",
-          "when": "scorpio.repoKey"
-        }
-      ],
-      "view/title": [
-        {
-          "command": "scorpio.sidebar.refresh",
-          "when": "view == artemis-sidebar",
-          "group": "navigation@4"
-        },
-        {
-          "command": "scorpio.workspace.submit",
-          "when": "(view == artemis-sidebar) && (scorpio.repoKey && scorpio.displayedKey in scorpio.repoKey)",
-          "group": "navigation@3"
-        },
-        {
-          "command": "scorpio.displayedExercise.clone",
-          "when": "!scorpio.theia.givenExercise && (view == artemis-sidebar) && scorpio.authenticated && (scorpio.displayedKey && scorpio.displayedKey not in scorpio.repoKey)",
-          "group": "navigation@3"
-        },
-        {
-          "command": "scorpio.workspace.sync",
-          "when": "(view == artemis-sidebar) && scorpio.authenticated && (scorpio.repoKey && scorpio.displayedKey not in scorpio.repoKey)",
-          "group": "navigation@2"
-        },
-        {
-          "command": "scorpio.displayedExercise.back",
-          "when": "!scorpio.theia.givenExercise && (view == artemis-sidebar) && scorpio.displayBackButton",
-          "group": "navigation@1"
         }
       ]
     }
@@ -257,11 +107,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "extensionDependencies": [
-    "vscode.git"
-  ],
   "extensionKind": [
-    "ui",
     "workspace"
   ],
   "icon": "media/icon.png",
