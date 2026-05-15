@@ -8,10 +8,10 @@ export type Settings = {
 
 export var settings: Settings;
 
-export function initSettings() {
+export function initSettings(): vscode.Disposable {
   settings = getSettings();
 
-  vscode.workspace.onDidChangeConfiguration((e) => {
+  return vscode.workspace.onDidChangeConfiguration((e) => {
     handleSettingsChange(e);
   });
 }

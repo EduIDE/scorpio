@@ -3,7 +3,6 @@ import { exec } from "child_process";
 
 export type TheiaEnv = {
   THEIA_FLAG: boolean;
-  ARTEMIS_TOKEN: string | undefined;
   ARTEMIS_URL: string | undefined;
   GIT_URI: URL | undefined;
   GIT_USER: string | undefined;
@@ -12,14 +11,13 @@ export type TheiaEnv = {
 
 const ENV_KEYS = [
   "THEIA",
-  "ARTEMIS_TOKEN",
   "ARTEMIS_URL",
   "GIT_URI",
   "GIT_USER",
   "GIT_MAIL",
 ] as const satisfies Array<string>;
 
-const REQUIRED_ENV_KEYS = ["ARTEMIS_TOKEN", "ARTEMIS_URL", "GIT_URI"] as const;
+const REQUIRED_ENV_KEYS = ["ARTEMIS_URL", "GIT_URI"] as const;
 
 export interface TheiaEnvStrategy {
   load(): Promise<TheiaEnv>;
@@ -30,10 +28,9 @@ function parseTheiaEnv(
   fromDataBridge: boolean = false,
 ): TheiaEnv {
   const gitUriString = env["GIT_URI"];
-  const hasRequiredKeys = !!(env["ARTEMIS_TOKEN"] && env["ARTEMIS_URL"] && gitUriString);
+  const hasRequiredKeys = !!(env["ARTEMIS_URL"] && gitUriString);
   return {
     THEIA_FLAG: env["THEIA"] !== undefined || (fromDataBridge && hasRequiredKeys),
-    ARTEMIS_TOKEN: env["ARTEMIS_TOKEN"],
     ARTEMIS_URL: env["ARTEMIS_URL"],
     GIT_URI: gitUriString ? new URL(gitUriString) : undefined,
     GIT_USER: env["GIT_USER"],
@@ -64,7 +61,7 @@ async function getEnvVariable(key: string): Promise<string | undefined> {
 }
 
 /**
- * Strategy that reads credentials from process environment variables.
+ * Strategy that reads Theia environment variables from the process.
  * This is the default/legacy behavior.
  */
 export class ProcessEnvStrategy implements TheiaEnvStrategy {
@@ -152,7 +149,7 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
       );
       return result ?? {};
     } catch (error) {
-      this.outputChannel.appendLine(`Error fetching credentials: ${error}`);
+      this.outputChannel.appendLine(`Error fetching environment variables: ${error}`);
       return {};
     }
   }

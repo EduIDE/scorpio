@@ -8,7 +8,6 @@ import { createTheiaEnvStrategy, TheiaEnv } from "./env-strategy";
 
 export let theiaEnv: TheiaEnv = {
   THEIA_FLAG: false,
-  ARTEMIS_TOKEN: undefined,
   ARTEMIS_URL: undefined,
   GIT_URI: undefined,
   GIT_USER: undefined,

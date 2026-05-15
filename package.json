@@ -48,12 +48,6 @@
     "webpack-cli": "^5.1.4"
   },
   "contributes": {
-    "authentication": [
-      {
-        "id": "artemis",
-        "label": "Credentials"
-      }
-    ],
     "configuration": {
       "title": "Scorpio - Artemis",
       "properties": {
@@ -79,30 +73,8 @@
         "command": "scorpio.restart",
         "category": "Scorpio",
         "title": "Restart Extension"
-      },
-      {
-        "command": "scorpio.login",
-        "category": "Scorpio",
-        "title": "Login"
-      },
-      {
-        "command": "scorpio.logout",
-        "category": "Scorpio",
-        "title": "Logout"
       }
-    ],
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "scorpio.login",
-          "when": "!scorpio.authenticated"
-        },
-        {
-          "command": "scorpio.logout",
-          "when": "scorpio.authenticated"
-        }
-      ]
-    }
+    ]
   },
   "activationEvents": [
     "onStartupFinished"
