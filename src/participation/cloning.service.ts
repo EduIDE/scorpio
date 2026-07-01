@@ -50,10 +50,11 @@ export async function cloneUserRepo(repoUrl: string, username: string) {
   const cloneUrlWithToken = new URL(addVcsTokenToUrl(repoUrl, username, vcsToken));
   const clonePath = await cloneByGivenURL(cloneUrlWithToken, destinationPath);
 
-  // Pre-warm Gradle daemon in background to avoid ~3s init on first build
+  // Pre-warm Gradle in the background so the student's first build is faster.
+  // The depth (off/daemon/deps/full) is controlled by the GRADLE_PREWARM env var.
   const exercise = getState().displayedExercise;
   if ((exercise as ProgrammingExercise)?.programmingLanguage === ProgrammingLanguage.JAVA) {
-    warmupGradleDaemon(clonePath);
+    warmupGradleDaemon(clonePath, theiaEnv.GRADLE_PREWARM);
   }
 
   if (!theiaEnv.THEIA_FLAG) {

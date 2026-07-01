@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import simpleGit, { GitConfigScope } from "simple-git";
 import { hostname } from "os";
 import { cloneByGivenURL } from "../participation/cloning.service";
-import { createTheiaEnvStrategy, TheiaEnv } from "./env-strategy";
+import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
 
 // Mutable theiaEnv that gets populated after loading
 export let theiaEnv: TheiaEnv = {
@@ -12,6 +12,7 @@ export let theiaEnv: TheiaEnv = {
   GIT_URI: undefined,
   GIT_USER: undefined,
   GIT_MAIL: undefined,
+  GRADLE_PREWARM: DEFAULT_GRADLE_PREWARM,
 };
 
 /**
