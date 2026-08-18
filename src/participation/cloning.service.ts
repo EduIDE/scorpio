@@ -10,6 +10,8 @@ import * as fs from "fs/promises";
 import { retrieveVcsAccessToken } from "../artemis/authentication.client";
 import { getWorkspaceFolder, theiaEnv } from "../theia/theia";
 import { addVcsTokenToUrl } from "@shared/models/participation.model";
+import { ProgrammingExercise, ProgrammingLanguage } from "@shared/models/exercise.model";
+import { warmupGradleDaemon } from "./gradle.service";
 
 type CloneMode = "subdirectory" | "workspace-root";
 
@@ -72,6 +74,13 @@ export async function cloneUserRepo(repoUrl: string, username: string) {
   // Clone the repository
   const cloneUrlWithToken = new URL(addVcsTokenToUrl(repoUrl, username, vcsToken));
   const clonePath = await cloneByGivenURL(cloneUrlWithToken, destinationPath, cloneOptions);
+
+  // Pre-warm Gradle in the background so the student's first build is faster.
+  // The depth (off/daemon/deps/full) is controlled by the GRADLE_PREWARM env var.
+  const exercise = getState().displayedExercise;
+  if ((exercise as ProgrammingExercise)?.programmingLanguage === ProgrammingLanguage.JAVA) {
+    warmupGradleDaemon(clonePath, theiaEnv.GRADLE_PREWARM);
+  }
 
   if (!theiaEnv.THEIA_FLAG) {
     // Prompt the user to open the cloned folder in a new workspace
