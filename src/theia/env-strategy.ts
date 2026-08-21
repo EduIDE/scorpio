@@ -1,12 +1,23 @@
 import * as vscode from "vscode";
 import { exec } from "child_process";
 
+/**
+ * Controls how much of the first Gradle build is warmed up in the background at
+ * session startup (see the prewarming levels L1-L4):
+ *  - "off":    no prewarming.
+ *  - "daemon": start the Gradle daemon so it is warm and reused (L1).
+ *  - "deps":   also configure the build and resolve/download dependencies (L3).
+ *  - "full":   also compile, leaving the student's first build near-instant (L4).
+ */
+export type GradlePrewarmLevel = "off" | "daemon" | "deps" | "full";
+
 export type TheiaEnv = {
   THEIA_FLAG: boolean;
   ARTEMIS_URL: string | undefined;
   GIT_URI: URL | undefined;
   GIT_USER: string | undefined;
   GIT_MAIL: string | undefined;
+  GRADLE_PREWARM: GradlePrewarmLevel;
 };
 
 const ENV_KEYS = [
@@ -15,9 +26,29 @@ const ENV_KEYS = [
   "GIT_URI",
   "GIT_USER",
   "GIT_MAIL",
+  "GRADLE_PREWARM",
 ] as const satisfies Array<string>;
 
 const REQUIRED_ENV_KEYS = ["ARTEMIS_URL", "GIT_URI"] as const;
+
+/**
+ * Default prewarm level when the environment variable is unset. Warming the
+ * daemon is cheap and benefits every Gradle session, so it is the safe default.
+ */
+export const DEFAULT_GRADLE_PREWARM: GradlePrewarmLevel = "daemon";
+
+function parseGradlePrewarm(value: string | undefined): GradlePrewarmLevel {
+  const level = value?.trim().toLowerCase();
+  if (level === "off" || level === "daemon" || level === "deps" || level === "full") {
+    return level;
+  }
+  if (level) {
+    console.warn(
+      `Unknown GRADLE_PREWARM value "${value}", falling back to "${DEFAULT_GRADLE_PREWARM}"`,
+    );
+  }
+  return DEFAULT_GRADLE_PREWARM;
+}
 
 export interface TheiaEnvStrategy {
   load(): Promise<TheiaEnv>;
@@ -35,6 +66,7 @@ function parseTheiaEnv(
     GIT_URI: gitUriString ? new URL(gitUriString) : undefined,
     GIT_USER: env["GIT_USER"],
     GIT_MAIL: env["GIT_MAIL"],
+    GRADLE_PREWARM: parseGradlePrewarm(env["GRADLE_PREWARM"]),
   };
 }
 
