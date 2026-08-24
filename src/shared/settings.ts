@@ -1,19 +1,17 @@
 import * as vscode from "vscode";
-import { authenticationProvider } from "../extension";
 import { theiaEnv } from "../theia/theia";
 
 export type Settings = {
   base_url: string | undefined;
   default_repo_path: string | undefined;
-  easter_egg: boolean;
 };
 
 export var settings: Settings;
 
-export function initSettings() {
+export function initSettings(): vscode.Disposable {
   settings = getSettings();
 
-  vscode.workspace.onDidChangeConfiguration((e) => {
+  return vscode.workspace.onDidChangeConfiguration((e) => {
     handleSettingsChange(e);
   });
 }
@@ -34,16 +32,13 @@ function getSettings(): Settings {
     .getConfiguration("scorpio")
     .get<string>("defaults.repoPath");
 
-  const easter_egg = vscode.workspace.getConfiguration("scorpio").get<boolean>("?") ?? false;
-
   return {
     base_url: base_url,
     default_repo_path: default_repo_path,
-    easter_egg: easter_egg,
   };
 }
 
-async function handleSettingsChange(e: vscode.ConfigurationChangeEvent) {
+function handleSettingsChange(e: vscode.ConfigurationChangeEvent) {
   if (e.affectsConfiguration("scorpio.artemis.apiBaseUrl")) {
     if (theiaEnv.ARTEMIS_URL) {
       console.warn("Artemis URL can not be changed in theia environment");
@@ -57,10 +52,6 @@ async function handleSettingsChange(e: vscode.ConfigurationChangeEvent) {
       vscode.window.showErrorMessage("Artemis Base URL not set. Please set it in the settings.");
     }
     settings.base_url = base_url;
-
-    await authenticationProvider.removeSession();
-    console.warn("Restarting extension");
-    vscode.commands.executeCommand("scorpio.restart");
   }
 
   if (e.affectsConfiguration("scorpio.defaults.repoPath")) {
@@ -79,10 +70,5 @@ async function handleSettingsChange(e: vscode.ConfigurationChangeEvent) {
       .getConfiguration("scorpio")
       .get<string>("defaults.repoPath");
     settings.default_repo_path = default_repo_path;
-  }
-
-  if (e.affectsConfiguration("scorpio.?")) {
-    const easter_egg = vscode.workspace.getConfiguration("scorpio").get<boolean>("?") ?? false;
-    settings.easter_egg = easter_egg;
   }
 }

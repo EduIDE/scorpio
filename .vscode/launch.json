@@ -13,28 +13,12 @@
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
       "preLaunchTask": "${defaultBuildTask}",
       "env": {
-        // "THEIA":"true",
-        // "ARTEMIS_TOKEN":"eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJhcnRlbWlzX3Rlc3RfdXNlcl8xIiwiYXV0aCI6IlJPTEVfVVNFUiIsInRvb2xzIjoiU0NPUlBJTyIsImV4cCI6MTczOTY1MzI0N30.OpCoHLV-h3pF_FXrspb455eGC7ltYsE68YZjxTT9RXChSrxOhkuZMRnhHV3dyzhjvNi7pzgvKnvg7ko3F9N-8w",
+        // Uncomment to simulate a Theia environment locally.
+        // "THEIA": "true",
         "ARTEMIS_URL": "https://artemis-test1.artemis.cit.tum.de"
-        // "GIT_URI":"https://artemis_test_user_1:vcpat-8gBv37zCDU5OSVVVBPYJrn6pjOCmYKCSxe7ZrA954g6P@artemis-test9.artemis.cit.tum.de/git/THEIATESTTESTEXERCISE/theiatesttestexercise-artemis_test_user_1.git",
-        // "GIT_USER":"dennis",
-        // "GIT_MAIL":"dp.jandow@gmail.com"
-      }
-    },
-    {
-      "name": "Extension Tests",
-      "type": "extensionHost",
-      "debugWebWorkerHost": true,
-      "request": "launch",
-      "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}",
-        // "--extensionDevelopmentKind=web",
-        "--extensionTestsPath=${workspaceFolder}/dist/test/suite/index"
-      ],
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "preLaunchTask": "${defaultBuildTask}",
-      "env": {
-        "DEBUG": "true"
+        // "GIT_URI": "https://<user>:<vcs-token>@<host>/git/<project>/<repo>.git",
+        // "GIT_USER": "<git-user>",
+        // "GIT_MAIL": "<git-email>"
       }
     }
   ]

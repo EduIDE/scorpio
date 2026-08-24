@@ -14,17 +14,11 @@ webpack.config.js
 esbuild.js
 .github/**
 
-#Ignore all webview files except build directory
-webview/src/**
-webview/public/**
-webview/scripts/**
-webview/index.html
-webview/README.md
-webview/package.json
-webview/package-lock.json
-webview/node_modules/**
-webview/.gitignore
-webview/.vscode/**
+# Ignore dev tooling configs
+eslint.config.js
+renovate.json
+.oxfmtrc.json
+docs/**
 
 # Ignore misc
 .yarnrc

@@ -1,8 +1,0 @@
-<h2>{{ exercise().title }}</h2>
-@if( !exercise().dueDate || exercise().dueDate! > now()){ @if(repoKeyEqualsDisplayed()){
-<submit-button></submit-button>
-}@else{
-<clone-button></clone-button>
-} }
-<overview [exercise]="exercise()"></overview>
-<problem-statement [exercise]="exercise()"> </problem-statement>

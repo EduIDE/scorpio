@@ -13,7 +13,6 @@ export type GradlePrewarmLevel = "off" | "daemon" | "deps" | "full";
 
 export type TheiaEnv = {
   THEIA_FLAG: boolean;
-  ARTEMIS_TOKEN: string | undefined;
   ARTEMIS_URL: string | undefined;
   GIT_URI: URL | undefined;
   GIT_USER: string | undefined;
@@ -23,13 +22,14 @@ export type TheiaEnv = {
 
 const ENV_KEYS = [
   "THEIA",
-  "ARTEMIS_TOKEN",
   "ARTEMIS_URL",
   "GIT_URI",
   "GIT_USER",
   "GIT_MAIL",
   "GRADLE_PREWARM",
 ] as const satisfies Array<string>;
+
+const REQUIRED_ENV_KEYS = ["ARTEMIS_URL", "GIT_URI"] as const;
 
 /**
  * Default prewarm level when the environment variable is unset. Warming the
@@ -54,11 +54,14 @@ export interface TheiaEnvStrategy {
   load(): Promise<TheiaEnv>;
 }
 
-function parseTheiaEnv(env: Record<string, string | undefined>): TheiaEnv {
+function parseTheiaEnv(
+  env: Record<string, string | undefined>,
+  fromDataBridge: boolean = false,
+): TheiaEnv {
   const gitUriString = env["GIT_URI"];
+  const hasRequiredKeys = !!(env["ARTEMIS_URL"] && gitUriString);
   return {
-    THEIA_FLAG: env["THEIA"] !== undefined,
-    ARTEMIS_TOKEN: env["ARTEMIS_TOKEN"],
+    THEIA_FLAG: env["THEIA"] !== undefined || (fromDataBridge && hasRequiredKeys),
     ARTEMIS_URL: env["ARTEMIS_URL"],
     GIT_URI: gitUriString ? new URL(gitUriString) : undefined,
     GIT_USER: env["GIT_USER"],
@@ -90,7 +93,7 @@ async function getEnvVariable(key: string): Promise<string | undefined> {
 }
 
 /**
- * Strategy that reads credentials from process environment variables.
+ * Strategy that reads Theia environment variables from the process.
  * This is the default/legacy behavior.
  */
 export class ProcessEnvStrategy implements TheiaEnvStrategy {
@@ -153,9 +156,9 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
 
       // Check if we have ALL environment variables available
       // We won't act until all environment variables are available.
-      if (ENV_KEYS.every((key) => Boolean(env[key]))) {
+      if (REQUIRED_ENV_KEYS.every((key) => Boolean(env[key]))) {
         this.outputChannel.appendLine("Environment variables received from bridge");
-        return parseTheiaEnv(env);
+        return parseTheiaEnv(env, true);
       }
 
       this.outputChannel.appendLine(
@@ -178,7 +181,7 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
       );
       return result ?? {};
     } catch (error) {
-      this.outputChannel.appendLine(`Error fetching credentials: ${error}`);
+      this.outputChannel.appendLine(`Error fetching environment variables: ${error}`);
       return {};
     }
   }
