@@ -12,8 +12,13 @@ export let theiaEnv: TheiaEnv = {
   GIT_URI: undefined,
   GIT_USER: undefined,
   GIT_MAIL: undefined,
+  GIT_TOKEN: undefined,
   GRADLE_PREWARM: DEFAULT_GRADLE_PREWARM,
 };
+
+// Full untyped map of every variable that was provided (including arbitrary keys
+// from external systems). Used by the generic terminal-environment sink.
+export let rawEnv: Record<string, string> = {};
 
 /**
  * Loads the theia environment using the configured credential strategy.
@@ -21,7 +26,9 @@ export let theiaEnv: TheiaEnv = {
  */
 export async function loadTheiaEnv(): Promise<void> {
   const strategy = await createTheiaEnvStrategy();
-  theiaEnv = await strategy.load();
+  const loaded = await strategy.load();
+  theiaEnv = loaded.env;
+  rawEnv = loaded.raw;
 }
 
 export function getWorkspaceFolder() {
@@ -41,8 +48,16 @@ export async function initTheia() {
       return;
     }
 
+    // Gitea private-repo case: authenticate the clone with the OIDC access token via an HTTP
+    // Bearer header. Only applies when a GIT_TOKEN is present and the Artemis path is not in
+    // use. When GIT_TOKEN is absent, the clone stays a plain public clone (unchanged behavior).
+    const useGiteaToken = Boolean(theiaEnv.GIT_TOKEN) && !theiaEnv.ARTEMIS_TOKEN;
+
     await cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath, {
       mode: "workspace-root",
+      httpExtraHeader: useGiteaToken
+        ? `Authorization: Bearer ${theiaEnv.GIT_TOKEN}`
+        : undefined,
     });
   }
 

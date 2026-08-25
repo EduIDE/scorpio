@@ -18,7 +18,15 @@ type CloneMode = "subdirectory" | "workspace-root";
 type CloneOptions = {
   mode?: CloneMode;
   preservedPaths?: string[];
+  // Full HTTP header line (e.g. "Authorization: Bearer <token>") to authenticate the clone.
+  // When set, it is passed as `git -c http.extraHeader=...` and persisted into the cloned
+  // repo's .git/config so subsequent in-IDE fetch/push stay authenticated.
+  httpExtraHeader?: string;
 };
+
+// Injectable simple-git factory. Exposed so tests can swap the factory without a mock
+// framework; production code always uses the real simpleGit.
+export const gitClientFactory = { simpleGit };
 
 type PreservedWorkspaceEntry = {
   relativePath: string;
@@ -118,16 +126,17 @@ export async function cloneByGivenURL(
       cloneUrl,
       destinationPath,
       options.preservedPaths ?? THEIA_PRESERVED_PATHS,
+      options.httpExtraHeader,
     );
   }
 
   const repoName = path.basename(cloneUrl.pathname, ".git"); // Use repository name as subdirectory name
   const clonePath = path.join(destinationPath, repoName);
 
-  const gitForClone = simpleGit(destinationPath);
+  const gitForClone = gitClientFactory.simpleGit(destinationPath);
 
   try {
-    await gitForClone.clone(cloneUrl.toString(), clonePath);
+    await gitForClone.clone(cloneUrl.toString(), clonePath, buildCloneOptions(options?.httpExtraHeader));
   } catch (e: any) {
     throw new Error(`Error cloning repository: ${e.message}`);
   }
@@ -135,10 +144,22 @@ export async function cloneByGivenURL(
   return clonePath;
 }
 
+// Builds the extra simple-git clone options. When an HTTP header is provided, it is passed as
+// `git clone -c http.extraHeader=...`, which authenticates the initial fetch AND persists the
+// header into the new repo's .git/config so later in-IDE fetch/push are authenticated too.
+// The token is therefore stored in .git/config; this is acceptable since it is short-lived.
+function buildCloneOptions(httpExtraHeader?: string): string[] {
+  if (!httpExtraHeader) {
+    return [];
+  }
+  return ["-c", `http.extraHeader=${httpExtraHeader}`];
+}
+
 async function cloneIntoWorkspaceRoot(
   cloneUrl: URL,
   workspacePath: string,
   preservedPaths: string[] = [],
+  httpExtraHeader?: string,
 ): Promise<string> {
   // Store preserved workspace-owned files outside the mounted workspace so we can safely
   // clear /home/project and let `git clone ... .` materialize the repository at the root.
@@ -157,9 +178,9 @@ async function cloneIntoWorkspaceRoot(
     // survive. This ensures repo files win over any preexisting files from the image or volume.
     await clearDirectory(workspacePath);
 
-    const gitForClone = simpleGit(workspacePath);
+    const gitForClone = gitClientFactory.simpleGit(workspacePath);
     // Clone into "." so the exercise repository becomes the workspace root in Theia.
-    await gitForClone.clone(cloneUrl.toString(), ".");
+    await gitForClone.clone(cloneUrl.toString(), ".", buildCloneOptions(httpExtraHeader));
     cloneSucceeded = true;
 
     return workspacePath;

@@ -18,6 +18,7 @@ export type TheiaEnv = {
   GIT_URI: URL | undefined;
   GIT_USER: string | undefined;
   GIT_MAIL: string | undefined;
+  GIT_TOKEN: string | undefined;
   GRADLE_PREWARM: GradlePrewarmLevel;
 };
 
@@ -28,6 +29,7 @@ const ENV_KEYS = [
   "GIT_URI",
   "GIT_USER",
   "GIT_MAIL",
+  "GIT_TOKEN",
   "GRADLE_PREWARM",
 ] as const satisfies Array<string>;
 
@@ -50,11 +52,25 @@ function parseGradlePrewarm(value: string | undefined): GradlePrewarmLevel {
   return DEFAULT_GRADLE_PREWARM;
 }
 
-export interface TheiaEnvStrategy {
-  load(): Promise<TheiaEnv>;
+/**
+ * Result of loading the environment: the typed `env` (the known keys with their
+ * bespoke handling) plus `raw`, the full untyped map of every variable that was
+ * provided. `raw` is the source for the generic terminal-environment sink so that
+ * arbitrary variables supplied by external systems reach the session.
+ */
+export interface LoadedEnv {
+  env: TheiaEnv;
+  raw: Record<string, string>;
 }
 
-function parseTheiaEnv(env: Record<string, string | undefined>): TheiaEnv {
+export interface TheiaEnvStrategy {
+  load(): Promise<LoadedEnv>;
+}
+
+/** Keys handled by the typed `TheiaEnv`; excluded from the generic terminal sink. */
+export const KNOWN_ENV_KEYS: ReadonlySet<string> = new Set(ENV_KEYS);
+
+export function parseTheiaEnv(env: Record<string, string | undefined>): TheiaEnv {
   const gitUriString = env["GIT_URI"];
   return {
     THEIA_FLAG: env["THEIA"] !== undefined,
@@ -63,6 +79,7 @@ function parseTheiaEnv(env: Record<string, string | undefined>): TheiaEnv {
     GIT_URI: gitUriString ? new URL(gitUriString) : undefined,
     GIT_USER: env["GIT_USER"],
     GIT_MAIL: env["GIT_MAIL"],
+    GIT_TOKEN: env["GIT_TOKEN"],
     GRADLE_PREWARM: parseGradlePrewarm(env["GRADLE_PREWARM"]),
   };
 }
@@ -94,13 +111,15 @@ async function getEnvVariable(key: string): Promise<string | undefined> {
  * This is the default/legacy behavior.
  */
 export class ProcessEnvStrategy implements TheiaEnvStrategy {
-  async load(): Promise<TheiaEnv> {
+  async load(): Promise<LoadedEnv> {
     const env: Record<string, string | undefined> = Object.fromEntries(
       await Promise.all(
         ENV_KEYS.map((key) => getEnvVariable(key).then((value) => [key, value] as const)),
       ),
     );
-    return parseTheiaEnv(env);
+    // No generic sink needed here: in the process-env (lazy) path arbitrary variables
+    // are already real container environment variables that terminals inherit natively.
+    return { env: parseTheiaEnv(env), raw: {} };
   }
 }
 
@@ -110,7 +129,7 @@ export class ProcessEnvStrategy implements TheiaEnvStrategy {
  */
 export class DataBridgeStrategy implements TheiaEnvStrategy {
   private static readonly DATA_BRIDGE_EXTENSION_ID = "tum-aet.data-bridge";
-  private static readonly COMMAND = "dataBridge.getEnv";
+  private static readonly COMMAND = "dataBridge.getEnvState";
   private static readonly POLL_INTERVAL_MS = 500;
   private static readonly TIMEOUT_MS = 10000;
 
@@ -120,7 +139,7 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
     this.outputChannel = vscode.window.createOutputChannel("Scorpio Environment Variables");
   }
 
-  async load(): Promise<TheiaEnv> {
+  async load(): Promise<LoadedEnv> {
     this.outputChannel.appendLine("Using data bridge strategy");
 
     const dataBridgeExt = vscode.extensions.getExtension(
@@ -145,17 +164,19 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
     return this.pollForEnvironmentVariables();
   }
 
-  private async pollForEnvironmentVariables(): Promise<TheiaEnv> {
+  private async pollForEnvironmentVariables(): Promise<LoadedEnv> {
     const startTime = Date.now();
 
     while (Date.now() - startTime < DataBridgeStrategy.TIMEOUT_MS) {
-      const env = await this.fetchEnvironmentVariables();
+      const state = await this.fetchEnvState();
 
-      // Check if we have ALL environment variables available
-      // We won't act until all environment variables are available.
-      if (ENV_KEYS.every((key) => Boolean(env[key]))) {
+      // Proceed as soon as the bridge reports that an injection has been applied.
+      // The injection is atomic, so `injected` implies the whole map is present -
+      // and it does not assume any particular (e.g. Artemis-specific) keys, so
+      // non-Artemis sessions no longer stall until the timeout.
+      if (state?.injected) {
         this.outputChannel.appendLine("Environment variables received from bridge");
-        return parseTheiaEnv(env);
+        return { env: parseTheiaEnv(state.environment), raw: state.environment };
       }
 
       this.outputChannel.appendLine(
@@ -170,16 +191,20 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
     return new ProcessEnvStrategy().load();
   }
 
-  private async fetchEnvironmentVariables(): Promise<Record<string, string | undefined>> {
+  private async fetchEnvState(): Promise<
+    { injected: boolean; environment: Record<string, string> } | undefined
+  > {
     try {
-      const result = await vscode.commands.executeCommand<Record<string, string>>(
-        DataBridgeStrategy.COMMAND,
-        [...ENV_KEYS],
-      );
-      return result ?? {};
+      // getEnvState takes no arguments and returns the full injected map plus a
+      // readiness flag. `executeCommand` can resolve to undefined while the bridge
+      // is still initializing, so callers must null-check the result.
+      return await vscode.commands.executeCommand<{
+        injected: boolean;
+        environment: Record<string, string>;
+      }>(DataBridgeStrategy.COMMAND);
     } catch (error) {
       this.outputChannel.appendLine(`Error fetching credentials: ${error}`);
-      return {};
+      return undefined;
     }
   }
 

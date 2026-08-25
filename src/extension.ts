@@ -8,7 +8,8 @@ import { ArtemisAuthenticationProvider, AUTH_ID } from "./authentication/authent
 import { clearRepoState, setDisplayedState, getState } from "./shared/state";
 import { sync_problem_statement_with_workspace } from "./problemStatement/problem_statement";
 import { NotAuthenticatedError } from "./authentication/not_authenticated.error";
-import { initTheia, loadTheiaEnv, theiaEnv } from "./theia/theia";
+import { initTheia, loadTheiaEnv, rawEnv, theiaEnv } from "./theia/theia";
+import { KNOWN_ENV_KEYS } from "./theia/env-strategy";
 import { initSettings } from "./shared/settings";
 import { detectRepoCourseAndExercise, submitCurrentWorkspace } from "./shared/repository.service";
 import { umlFileProvider } from "./problemStatement/uml.db";
@@ -25,6 +26,18 @@ export async function activate(context: vscode.ExtensionContext) {
   // Load credentials first (may poll credential bridge if configured)
   // Blocks the activation until the credentials are loaded
   await loadTheiaEnv();
+
+  // Export arbitrary (non-known) variables to the integrated terminal environment so
+  // that terminals and terminal-spawned tasks inherit them. Known keys are handled by
+  // their bespoke logic and are deliberately kept out of terminals (this also avoids
+  // leaking ARTEMIS_TOKEN into shells). Clear first: the collection is persistent and
+  // survives workspace reloads, so stale vars from a prior launch must not linger.
+  context.environmentVariableCollection.clear();
+  for (const [key, value] of Object.entries(rawEnv)) {
+    if (!KNOWN_ENV_KEYS.has(key)) {
+      context.environmentVariableCollection.replace(key, value);
+    }
+  }
 
   await initTheia();
 

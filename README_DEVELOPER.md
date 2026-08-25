@@ -41,6 +41,10 @@ The core is responsible for interacting with the VSCode engine. It handles basic
 The core also handles the communication with the Artemis server. It is responsible for authenticating the user, fetching and sending exercise data to the server. \
 The webview can NOT communicate with the Artemis API directly due to CORS. Therefore all communication has to go through the core which acts as a proxy.
 
+### Environment variables
+
+At activation the core loads the session environment via a strategy (see [src/theia/env-strategy.ts](src/theia/env-strategy.ts)): from the process environment (lazy sessions) or by polling the data-bridge extension's `dataBridge.getEnvState` command until it reports `injected` (eager / prewarmed sessions). A fixed set of known keys (`ARTEMIS_TOKEN`, `ARTEMIS_URL`, `GIT_URI`, `GIT_USER`, `GIT_MAIL`, `GIT_TOKEN`, `THEIA`, `GRADLE_PREWARM`) drives the bespoke authentication, clone, git-identity, and prewarm logic. Any **other** variable an external system provides is applied to the integrated terminal environment via `context.environmentVariableCollection`, so terminals and terminal-spawned tasks inherit it. Known keys are deliberately kept out of the terminal environment (this also keeps `ARTEMIS_TOKEN` out of shells). Note that `environmentVariableCollection` affects only terminals started after activation, not already-running backend or language-server processes.
+
 ### Webview
 
 - running in a **browser environment** and hosting its own website
