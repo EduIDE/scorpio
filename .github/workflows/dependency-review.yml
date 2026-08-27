@@ -1,0 +1,14 @@
+# Renovate reports vulnerabilities already on main; this one blocks a PR that
+# is about to add a new dependency with a known advisory. It only looks at what
+# the PR adds, so it stays quiet about pre-existing findings.
+
+name: Dependency Review
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  dependency-review:
+    uses: EduIDE/.github/.github/workflows/dependency-review.yml@v1
