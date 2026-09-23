@@ -12,6 +12,7 @@ import { getWorkspaceFolder, theiaEnv } from "../theia/theia";
 import { addVcsTokenToUrl } from "@shared/models/participation.model";
 import { ProgrammingExercise, ProgrammingLanguage } from "@shared/models/exercise.model";
 import { warmupGradleDaemon } from "./gradle.service";
+import { isSameRepository } from "./repo-identity";
 
 type CloneMode = "subdirectory" | "workspace-root";
 
@@ -30,6 +31,43 @@ type PreservedWorkspaceEntry = {
 // We preserve only those exact paths. Everything else in the workspace should come from
 // the exercise repository so repo content can fully define the student's project.
 const THEIA_PRESERVED_PATHS = [".vscode/settings.json", ".theia", "persisted", "lost+found"];
+
+// Injectable simple-git factory. Exposed so tests can swap the factory without a mock
+// framework; production code always uses the real simpleGit.
+export const gitClientFactory = { simpleGit };
+
+/**
+ * Is the workspace already a checkout of the repository we were asked to clone?
+ *
+ * Sessions are backed by a persistent volume keyed to the student and the exercise, so a
+ * second session on the same exercise mounts a workspace that already holds their work.
+ * Re-cloning there would throw it away.
+ *
+ * Credentials differ between launches (tokens are short-lived) and say nothing about
+ * identity, so only host and path are compared.
+ */
+export async function workspaceAlreadyHasRepo(
+  workspacePath: string,
+  cloneUrl: URL,
+): Promise<boolean> {
+  try {
+    await fs.stat(path.join(workspacePath, ".git"));
+  } catch {
+    return false;
+  }
+
+  try {
+    const remotes = await gitClientFactory.simpleGit(workspacePath).getRemotes(true);
+    const origin = remotes.find((remote) => remote.name === "origin");
+    if (!origin?.refs?.fetch) {
+      return false;
+    }
+    return isSameRepository(origin.refs.fetch, cloneUrl);
+  } catch {
+    // A .git we cannot read is not something to build on - fall back to a clean clone.
+    return false;
+  }
+}
 
 export async function cloneUserRepo(repoUrl: string, username: string) {
   // get folder to clone repo into
@@ -124,7 +162,7 @@ export async function cloneByGivenURL(
   const repoName = path.basename(cloneUrl.pathname, ".git"); // Use repository name as subdirectory name
   const clonePath = path.join(destinationPath, repoName);
 
-  const gitForClone = simpleGit(destinationPath);
+  const gitForClone = gitClientFactory.simpleGit(destinationPath);
 
   try {
     await gitForClone.clone(cloneUrl.toString(), clonePath);
@@ -140,6 +178,16 @@ async function cloneIntoWorkspaceRoot(
   workspacePath: string,
   preservedPaths: string[] = [],
 ): Promise<string> {
+  // The workspace already holds this exact repository, so it holds the student's work too.
+  // Clearing and re-cloning here used to destroy every uncommitted change whenever a student
+  // re-entered an exercise - after a session timeout, most of all.
+  if (await workspaceAlreadyHasRepo(workspacePath, cloneUrl)) {
+    console.log(
+      `Workspace already contains ${cloneUrl.host}${cloneUrl.pathname}; keeping it as is.`,
+    );
+    return workspacePath;
+  }
+
   // Store preserved workspace-owned files outside the mounted workspace so we can safely
   // clear /home/project and let `git clone ... .` materialize the repository at the root.
   const backupRoot = await fs.mkdtemp(path.join(tmpdir(), "scorpio-workspace-clone-"));
@@ -157,7 +205,7 @@ async function cloneIntoWorkspaceRoot(
     // survive. This ensures repo files win over any preexisting files from the image or volume.
     await clearDirectory(workspacePath);
 
-    const gitForClone = simpleGit(workspacePath);
+    const gitForClone = gitClientFactory.simpleGit(workspacePath);
     // Clone into "." so the exercise repository becomes the workspace root in Theia.
     await gitForClone.clone(cloneUrl.toString(), ".");
     cloneSucceeded = true;
