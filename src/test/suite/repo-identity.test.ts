@@ -34,6 +34,36 @@ suite("isSameRepository", () => {
     );
   });
 
+  test("matches when the stored remote keeps a slash after .git", () => {
+    // Getting the strip order wrong here means a wipe, not a missed optimisation.
+    assert.strictEqual(
+      isSameRepository("https://artemis.example.org/git/COURSE/exercise-student1.git/", cloneUrl),
+      true,
+    );
+  });
+
+  test("matches across http and https, so an old remote does not trigger a wipe", () => {
+    assert.strictEqual(
+      isSameRepository("http://artemis.example.org/git/COURSE/exercise-student1.git", cloneUrl),
+      true,
+    );
+  });
+
+  test("treats paths as case-sensitive", () => {
+    // Git hosts may serve /COURSE/ and /course/ as different repositories.
+    assert.strictEqual(
+      isSameRepository("https://artemis.example.org/git/course/exercise-student1.git", cloneUrl),
+      false,
+    );
+  });
+
+  test("ignores hostname case", () => {
+    assert.strictEqual(
+      isSameRepository("https://ARTEMIS.example.org/git/COURSE/exercise-student1.git", cloneUrl),
+      true,
+    );
+  });
+
   test("rejects a different repository on the same host", () => {
     assert.strictEqual(
       isSameRepository("https://artemis.example.org/git/COURSE/exercise-student2.git", cloneUrl),

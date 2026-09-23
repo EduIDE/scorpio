@@ -185,6 +185,10 @@ async function cloneIntoWorkspaceRoot(
     console.log(
       `Workspace already contains ${cloneUrl.host}${cloneUrl.pathname}; keeping it as is.`,
     );
+    // The stored remote is matched on host and path only, so it may still differ in scheme or carry
+    // a token from a previous launch. Point origin at the URL we were actually given, so a later
+    // push cannot fall back to a plaintext http remote or to a credential that has since expired.
+    await refreshOriginUrl(workspacePath, cloneUrl);
     return workspacePath;
   }
 
@@ -221,6 +225,18 @@ async function cloneIntoWorkspaceRoot(
     }
 
     await fs.rm(backupRoot, { recursive: true, force: true });
+  }
+}
+
+async function refreshOriginUrl(workspacePath: string, cloneUrl: URL): Promise<void> {
+  try {
+    await gitClientFactory
+      .simpleGit(workspacePath)
+      .remote(["set-url", "origin", cloneUrl.toString()]);
+  } catch (e: any) {
+    // Not fatal: the workspace and the student's work are intact either way, and the existing
+    // remote may well still work. Worth knowing about, though.
+    console.warn(`Could not update the origin remote: ${e.message}`);
   }
 }
 
