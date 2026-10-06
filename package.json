@@ -32,7 +32,7 @@
     "fmt:check": "oxfmt --check"
   },
   "dependencies": {
-    "simple-git": "^3.27.0"
+    "simple-git": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
