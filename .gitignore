@@ -12,3 +12,4 @@ tsconfig.lsif.json
 .env
 .DS_Store
 secret.txt
+.vscode-test-web

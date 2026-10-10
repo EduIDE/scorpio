@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import * as vscode from "vscode";
 import { GradlePrewarmLevel } from "../theia/env-strategy";
 
 /**
@@ -18,41 +19,87 @@ const PREWARM_ARGS: Record<Exclude<GradlePrewarmLevel, "off">, string[]> = {
 };
 
 /**
- * Pre-warms the Gradle build in the background after cloning a repository, so the
- * student's first build can skip the phases warmed here. Runs detached and never
- * blocks the caller.
+ * Side effects the prewarm performs, grouped behind a seam so tests can assert the security
+ * gate (no build is ever started without explicit user confirmation) without touching the
+ * real filesystem, child_process or VS Code.
+ */
+export type GradlePrewarmEffects = {
+  gradlewExists: (gradlewPath: string) => boolean;
+  confirm: (projectPath: string) => Promise<boolean>;
+  makeExecutable: (gradlewPath: string) => void;
+  run: (projectPath: string, args: string[], level: GradlePrewarmLevel) => void;
+};
+
+/**
+ * Asks the student whether the repository's Gradle wrapper may be executed to prewarm the
+ * build. The prompt is non-modal and defaults to "no": if the student ignores it nothing runs,
+ * which keeps the feature opt-in while removing the silent code-execution property.
+ */
+async function promptPrewarmConfirmation(_projectPath: string): Promise<boolean> {
+  const choice = await vscode.window.showWarningMessage(
+    "Scorpio can pre-build this exercise with its Gradle wrapper to speed up your first build. " +
+      "This runs code from the cloned repository. Only continue for exercises you trust.",
+    "Pre-build now",
+  );
+  return choice === "Pre-build now";
+}
+
+function spawnGradle(projectPath: string, args: string[], level: GradlePrewarmLevel): void {
+  const child = spawn("./gradlew", args, {
+    cwd: projectPath,
+    detached: true,
+    stdio: "ignore",
+  });
+  // Detached failures surface asynchronously via the 'error' event, not a throw.
+  child.on("error", (error) => {
+    console.warn(`Gradle prewarm (${level}) failed to start: ${error.message}`);
+  });
+  child.unref();
+}
+
+export const defaultGradlePrewarmEffects: GradlePrewarmEffects = {
+  gradlewExists: (gradlewPath) => fs.existsSync(gradlewPath),
+  confirm: promptPrewarmConfirmation,
+  makeExecutable: (gradlewPath) => fs.chmodSync(gradlewPath, 0o755),
+  run: spawnGradle,
+};
+
+/**
+ * Pre-warms the Gradle build in the background after cloning a repository, so the student's
+ * first build can skip the phases warmed here.
  *
- * Silently skips if:
+ * Security: `./gradlew` and the bundled Gradle wrapper jar are repository-controlled, so a
+ * tampered exercise template could run arbitrary code during prewarm. The wrapper is therefore
+ * never executed automatically - the student must explicitly confirm first, and confirmation
+ * defaults to "no".
+ *
+ * Silently skips (no prompt) if:
  * - Prewarming is disabled (`level` is "off")
  * - Running on Windows (not a supported environment)
  * - The project does not contain a `gradlew` file (not a Gradle project)
  */
-export function warmupGradleDaemon(
+export async function warmupGradleDaemon(
   projectPath: string,
   level: GradlePrewarmLevel = "daemon",
-): void {
+  effects: GradlePrewarmEffects = defaultGradlePrewarmEffects,
+): Promise<void> {
   if (level === "off" || process.platform === "win32") {
     return;
   }
 
   const gradlewPath = path.join(projectPath, "gradlew");
-  if (!fs.existsSync(gradlewPath)) {
+  if (!effects.gradlewExists(gradlewPath)) {
+    return;
+  }
+
+  const confirmed = await effects.confirm(projectPath).catch(() => false);
+  if (!confirmed) {
     return;
   }
 
   try {
-    fs.chmodSync(gradlewPath, 0o755);
-
-    const child = spawn("./gradlew", PREWARM_ARGS[level], {
-      cwd: projectPath,
-      detached: true,
-      stdio: "ignore",
-    });
-    // Detached failures surface asynchronously via the 'error' event, not the throw below.
-    child.on("error", (error) => {
-      console.warn(`Gradle prewarm (${level}) failed to start: ${error.message}`);
-    });
-    child.unref();
+    effects.makeExecutable(gradlewPath);
+    effects.run(projectPath, PREWARM_ARGS[level], level);
   } catch (error: any) {
     console.warn(`Gradle prewarm (${level}) failed: ${error.message}`);
   }

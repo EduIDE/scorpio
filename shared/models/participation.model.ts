@@ -60,14 +60,3 @@ export function getProjectKeyFromRepoUrl(repoUrl: string): string {
   const projectKey = parts[4];
   return projectKey;
 }
-
-export function addVcsTokenToUrl(url: string, username: string, vsctoken: string): string {
-  const credentials = `://${username}:${vsctoken}@`;
-  if (!url.includes("@")) {
-    // the url has the format https://vcs-server.com
-    return url.replace("://", credentials);
-  } else {
-    // the url has the format https://username@vcs-server.com -> replace ://username@
-    return url.replace(/:\/\/.*@/, credentials);
-  }
-}

@@ -3,13 +3,12 @@ import { settings } from "../shared/settings";
 import { NotAuthenticatedError } from "../authentication/not_authenticated.error";
 import { AUTH_ID } from "../authentication/authentication_provider";
 import { getState } from "../shared/state";
-import simpleGit from "simple-git";
+import simpleGit, { GitConfigScope } from "simple-git";
 import { tmpdir } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
 import { retrieveVcsAccessToken } from "../artemis/authentication.client";
 import { getWorkspaceFolder, theiaEnv } from "../theia/theia";
-import { addVcsTokenToUrl } from "@shared/models/participation.model";
 import { ProgrammingExercise, ProgrammingLanguage } from "@shared/models/exercise.model";
 import { warmupGradleDaemon } from "./gradle.service";
 
@@ -19,8 +18,10 @@ type CloneOptions = {
   mode?: CloneMode;
   preservedPaths?: string[];
   // Full HTTP header line (e.g. "Authorization: Bearer <token>") to authenticate the clone.
-  // When set, it is passed as `git -c http.extraHeader=...` and persisted into the cloned
-  // repo's .git/config so subsequent in-IDE fetch/push stay authenticated.
+  // When set, it is injected into the git process via the GIT_CONFIG_* environment variables
+  // (never on the command line, so the token does not appear in process arguments) and then
+  // persisted into the cloned repo's .git/config so subsequent in-IDE fetch/push stay
+  // authenticated.
   httpExtraHeader?: string;
 };
 
@@ -79,15 +80,21 @@ export async function cloneUserRepo(repoUrl: string, username: string) {
     session.accessToken,
     getState().displayedExercise?.studentParticipations![0].id!,
   );
-  // Clone the repository
-  const cloneUrlWithToken = new URL(addVcsTokenToUrl(repoUrl, username, vcsToken));
-  const clonePath = await cloneByGivenURL(cloneUrlWithToken, destinationPath, cloneOptions);
+  // Authenticate the clone with an HTTP Basic header instead of embedding `user:token@host`
+  // in the URL. This keeps the short-lived VCS token out of the clone URL, out of the stored
+  // remote in .git/config and out of the git command line (process arguments).
+  const basicAuth = Buffer.from(`${username}:${vcsToken}`).toString("base64");
+  const clonePath = await cloneByGivenURL(new URL(repoUrl), destinationPath, {
+    ...cloneOptions,
+    httpExtraHeader: `Authorization: Basic ${basicAuth}`,
+  });
 
   // Pre-warm Gradle in the background so the student's first build is faster.
   // The depth (off/daemon/deps/full) is controlled by the GRADLE_PREWARM env var.
+  // Runs only after the student explicitly confirms (see warmupGradleDaemon).
   const exercise = getState().displayedExercise;
   if ((exercise as ProgrammingExercise)?.programmingLanguage === ProgrammingLanguage.JAVA) {
-    warmupGradleDaemon(clonePath, theiaEnv.GRADLE_PREWARM);
+    void warmupGradleDaemon(clonePath, theiaEnv.GRADLE_PREWARM);
   }
 
   if (!theiaEnv.THEIA_FLAG) {
@@ -134,25 +141,46 @@ export async function cloneByGivenURL(
   const clonePath = path.join(destinationPath, repoName);
 
   const gitForClone = gitClientFactory.simpleGit(destinationPath);
+  applyAuthHeaderEnv(gitForClone, options?.httpExtraHeader);
 
   try {
-    await gitForClone.clone(cloneUrl.toString(), clonePath, buildCloneOptions(options?.httpExtraHeader));
+    await gitForClone.clone(cloneUrl.toString(), clonePath);
   } catch (e: any) {
     throw new Error(`Error cloning repository: ${e.message}`);
   }
 
+  await persistAuthHeader(clonePath, options?.httpExtraHeader);
+
   return clonePath;
 }
 
-// Builds the extra simple-git clone options. When an HTTP header is provided, it is passed as
-// `git clone -c http.extraHeader=...`, which authenticates the initial fetch AND persists the
-// header into the new repo's .git/config so later in-IDE fetch/push are authenticated too.
-// The token is therefore stored in .git/config; this is acceptable since it is short-lived.
-function buildCloneOptions(httpExtraHeader?: string): string[] {
+// Injects the auth header into the git process via the GIT_CONFIG_* environment variables
+// (git >= 2.31). This authenticates the clone WITHOUT placing the token on the command line,
+// so it never appears in process arguments (`ps`). The env-provided config is not written to
+// the new repo's .git/config, so persistAuthHeader stores it afterwards for later fetch/push.
+function applyAuthHeaderEnv(git: ReturnType<typeof simpleGit>, httpExtraHeader?: string): void {
   if (!httpExtraHeader) {
-    return [];
+    return;
   }
-  return ["-c", `http.extraHeader=${httpExtraHeader}`];
+  // `.env` replaces the child process environment, so carry over the current environment
+  // (PATH etc.) and add the single-entry git config override.
+  git.env({
+    ...process.env,
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "http.extraHeader",
+    GIT_CONFIG_VALUE_0: httpExtraHeader,
+  });
+}
+
+// Persists the auth header into the cloned repo so later in-IDE fetch/push stay authenticated.
+// Residual risk: the short-lived token is written to .git/config here. It is, however, no longer
+// embedded in the clone URL / stored remote nor exposed in process arguments.
+async function persistAuthHeader(repoPath: string, httpExtraHeader?: string): Promise<void> {
+  if (!httpExtraHeader) {
+    return;
+  }
+  const git = gitClientFactory.simpleGit(repoPath);
+  await git.addConfig("http.extraHeader", httpExtraHeader, false, GitConfigScope.local);
 }
 
 async function cloneIntoWorkspaceRoot(
@@ -179,9 +207,12 @@ async function cloneIntoWorkspaceRoot(
     await clearDirectory(workspacePath);
 
     const gitForClone = gitClientFactory.simpleGit(workspacePath);
+    applyAuthHeaderEnv(gitForClone, httpExtraHeader);
     // Clone into "." so the exercise repository becomes the workspace root in Theia.
-    await gitForClone.clone(cloneUrl.toString(), ".", buildCloneOptions(httpExtraHeader));
+    await gitForClone.clone(cloneUrl.toString(), ".");
     cloneSucceeded = true;
+
+    await persistAuthHeader(workspacePath, httpExtraHeader);
 
     return workspacePath;
   } catch (e: any) {
