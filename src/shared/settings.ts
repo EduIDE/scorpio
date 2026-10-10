@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { authenticationProvider } from "../extension";
 import { theiaEnv } from "../theia/theia";
+import { resolveAllowedArtemisUrl } from "./artemis-url";
 
 export type Settings = {
   base_url: string | undefined;
@@ -21,9 +22,19 @@ export function initSettings() {
 function getSettings(): Settings {
   let base_url = vscode.workspace.getConfiguration("scorpio").get<string>("artemis.apiBaseUrl");
   if (theiaEnv.ARTEMIS_URL) {
-    const config = vscode.workspace.getConfiguration("scorpio");
-    config.update("artemis.apiBaseUrl", theiaEnv.ARTEMIS_URL, vscode.ConfigurationTarget.Global);
-    base_url = theiaEnv.ARTEMIS_URL;
+    // Only honor the environment override when it points at the same origin the extension is
+    // already configured for. An unvalidated ARTEMIS_URL could otherwise redirect every
+    // authenticated request (and the Bearer token) to an attacker-controlled host.
+    const trustedUrl = resolveAllowedArtemisUrl(theiaEnv.ARTEMIS_URL, base_url);
+    if (trustedUrl) {
+      const config = vscode.workspace.getConfiguration("scorpio");
+      config.update("artemis.apiBaseUrl", trustedUrl, vscode.ConfigurationTarget.Global);
+      base_url = trustedUrl;
+    } else {
+      vscode.window.showErrorMessage(
+        `Ignoring ARTEMIS_URL "${theiaEnv.ARTEMIS_URL}": it does not match the configured Artemis origin${base_url ? ` (${base_url})` : ""}.`,
+      );
+    }
   }
 
   if (!base_url) {

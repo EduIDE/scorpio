@@ -108,9 +108,10 @@ export class GenericWebSocket {
       connectHeaders: {
         Authorization: `Bearer ${session.accessToken}`,
       },
-      debug: function (str: string) {
-        console.debug(str);
-      },
+      // Security: never forward STOMP frames to the log. The CONNECT frame carries the
+      // Authorization header (the Artemis JWT), so logging frames leaks the token. Keep this
+      // a no-op so the access token is never written to the debug console.
+      debug: () => {},
       reconnectDelay: 5000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
