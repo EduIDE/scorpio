@@ -5,6 +5,7 @@
 
 import * as vscode from "vscode";
 import type { RepoInfo } from "./api";
+import { showGitHubError } from "./errors";
 import { getGitApi, type Repository } from "./git-api";
 import {
   listUnpushedCommits,
@@ -21,7 +22,7 @@ import {
   type RepoRef,
 } from "./repo";
 import type { GitHubSession } from "./session";
-import { redactUrlCredentials, type GitSource } from "../theia/env-parsing";
+import type { GitSource } from "../theia/env-parsing";
 
 export async function pushToGitHub(session: GitHubSession, source: GitSource): Promise<void> {
   const gitApi = await getGitApi();
@@ -48,13 +49,19 @@ export async function pushToGitHub(session: GitHubSession, source: GitSource): P
   if (!(await session.ensureSignedIn("public_repo"))) {
     return;
   }
-  let info = await session.api().getRepo(upstream);
-  if (!info || info.private) {
-    // Missing for a public_repo token, or private: only a repo token can push here.
-    if (!(await session.ensureSignedIn("repo"))) {
-      return;
-    }
+  let info: RepoInfo | undefined;
+  try {
     info = await session.api().getRepo(upstream);
+    if (!info || info.private) {
+      // Missing for a public_repo token, or private: only a repo token can push here.
+      if (!(await session.ensureSignedIn("repo"))) {
+        return;
+      }
+      info = await session.api().getRepo(upstream);
+    }
+  } catch (error: any) {
+    await showGitHubError(session.config, error, upstream.owner);
+    return;
   }
   if (!info) {
     vscode.window.showErrorMessage(
@@ -77,9 +84,7 @@ export async function pushToGitHub(session: GitHubSession, source: GitSource): P
     }
     await pushElsewhere(session, repository, upstream, info, branch);
   } catch (error: any) {
-    vscode.window.showErrorMessage(
-      `Push failed: ${redactUrlCredentials(`${error?.message ?? error}`)}`,
-    );
+    await showGitHubError(session.config, error, upstream.owner, "Push failed");
   }
 }
 

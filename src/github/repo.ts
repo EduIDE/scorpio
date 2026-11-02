@@ -77,6 +77,24 @@ export function compareUrl(
   return `${config.webOrigin}/${upstream.owner}/${upstream.repo}/compare/${encodeURIComponent(baseBranch)}...${head}?expand=1`;
 }
 
+/**
+ * GitHub's answer, from the REST API or from git, when an organization has not approved this OAuth App ("OAuth App
+ * access restrictions"): the organization's name when the answer gives it. Undefined for any other failure.
+ */
+export function orgAccessRestriction(text: string): { org?: string } | undefined {
+  if (!/OAuth App access restrictions|restricting-access-to-your-organization-s-data/i.test(text)) {
+    return undefined;
+  }
+  const named =
+    /the [`'"]?([A-Za-z0-9-]+)[`'"]? organization has enabled OAuth App access restrictions/i.exec(text);
+  return { org: named?.[1] };
+}
+
+/** The student's page for this OAuth App, where they request an organization's approval ("Request access"). */
+export function appAuthorizationUrl(config: GitHubConfig): string {
+  return `${config.webOrigin}/settings/connections/applications/${encodeURIComponent(config.clientId)}`;
+}
+
 /** A remote name that does not clash with the existing ones: `preferred`, else `preferred-2`, `preferred-3`, ... */
 export function freeRemoteName(preferred: string, existing: readonly string[]): string {
   if (!existing.includes(preferred)) {

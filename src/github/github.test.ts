@@ -15,11 +15,13 @@ import {
   setRepositoryIdentity,
 } from "./identity";
 import {
+  appAuthorizationUrl,
   compareUrl,
   freeRemoteName,
   gitHubIdentity,
   hasScope,
   isSessionIdentity,
+  orgAccessRestriction,
   parseRepoFromUrl,
   parseScopes,
   sameRepository,
@@ -142,6 +144,43 @@ test("repo: compare URL, remote names, same repository", () => {
   );
   assert.equal(sameRepository("https://github.com/ada/task", "https://github.com/bob/task"), false);
   assert.equal(sameRepository(undefined, "https://github.com/ada/task"), false);
+});
+
+// GitHub's wording, from the REST API (403) and from git (the body of the 403, which git prints as "remote:").
+const RESTRICTED =
+  "Although you appear to have the correct authorization credentials, the `course-org` organization has enabled " +
+  "OAuth App access restrictions, meaning that data access to third-parties is limited. For more information on " +
+  "these restrictions, including how to approve this app, visit " +
+  "https://docs.github.com/articles/restricting-access-to-your-organization-s-data/";
+
+test("repo: recognizes an organization's OAuth App access restriction", () => {
+  assert.deepEqual(orgAccessRestriction(`Could not read course-org/task: ${RESTRICTED}`), {
+    org: "course-org",
+  });
+  assert.deepEqual(
+    orgAccessRestriction(
+      `remote: ${RESTRICTED}\nfatal: unable to access 'https://github.com/course-org/task.git/': ` +
+        "The requested URL returned error: 403",
+    ),
+    { org: "course-org" },
+  );
+  assert.deepEqual(
+    orgAccessRestriction("see https://docs.github.com/articles/restricting-access-to-your-organization-s-data/"),
+    { org: undefined },
+  );
+  assert.equal(orgAccessRestriction("remote: Permission to ada/task.git denied to bob."), undefined);
+  assert.equal(orgAccessRestriction("Could not read ada/task: Bad credentials"), undefined);
+});
+
+test("repo: the student's page for the OAuth App", () => {
+  assert.equal(
+    appAuthorizationUrl(config),
+    "https://github.com/settings/connections/applications/Iv1.public",
+  );
+  assert.equal(
+    appAuthorizationUrl(resolveGitHubConfig({ clientId: "abc", host: "http://fake-github:8080" }, {})),
+    "http://fake-github:8080/settings/connections/applications/abc",
+  );
 });
 
 // --- device flow ------------------------------------------------------------------------------------------------

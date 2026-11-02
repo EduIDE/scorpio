@@ -8,9 +8,10 @@ import { cloneByGivenURL } from "../participation/cloning.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import type { GitHubSession } from "./session";
 import { withAskpass } from "./askpass";
+import { showGitHubError } from "./errors";
 import { setRepositoryIdentity } from "./identity";
 import { gitHubIdentity, parseRepoFromUrl, type RepoRef } from "./repo";
-import { redactUrlCredentials, type GradlePrewarmLevel } from "../theia/env-parsing";
+import type { GradlePrewarmLevel } from "../theia/env-parsing";
 
 /**
  * Called when cloning a GitHub repository failed. Returns true when this takes over (a private repository, or one
@@ -70,13 +71,13 @@ export async function clonePrivate(
   ref: string | undefined,
   prewarm: GradlePrewarmLevel,
 ): Promise<boolean> {
-  if (!(await session.api().getRepo(repo))) {
-    vscode.window.showErrorMessage(
-      `${repo.owner}/${repo.repo} does not exist or you have no access to it.`,
-    );
-    return false;
-  }
   try {
+    if (!(await session.api().getRepo(repo))) {
+      vscode.window.showErrorMessage(
+        `${repo.owner}/${repo.repo} does not exist or you have no access to it.`,
+      );
+      return false;
+    }
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -88,8 +89,11 @@ export async function clonePrivate(
         ),
     );
   } catch (error: any) {
-    vscode.window.showErrorMessage(
-      `Could not clone ${repo.owner}/${repo.repo}: ${redactUrlCredentials(`${error?.message ?? error}`)}`,
+    await showGitHubError(
+      session.config,
+      error,
+      repo.owner,
+      `Could not clone ${repo.owner}/${repo.repo}`,
     );
     return false;
   }
