@@ -22,10 +22,12 @@ export function initSettings() {
 function getSettings(): Settings {
   let base_url = vscode.workspace.getConfiguration("scorpio").get<string>("artemis.apiBaseUrl");
   if (theiaEnv.ARTEMIS_URL) {
-    // Only honor the environment override when it points at the same origin the extension is
-    // already configured for. An unvalidated ARTEMIS_URL could otherwise redirect every
-    // authenticated request (and the Bearer token) to an attacker-controlled host.
-    const trustedUrl = resolveAllowedArtemisUrl(theiaEnv.ARTEMIS_URL, base_url);
+    // Only honor the environment override when it points at a trusted origin: the configured
+    // base URL, or the session's GIT_URI (the exercise's own Artemis, injected alongside
+    // ARTEMIS_URL). This keeps the override working across every Artemis instance one image
+    // serves, while still refusing an ARTEMIS_URL that would redirect the Bearer token to a host
+    // unrelated to the exercise.
+    const trustedUrl = resolveAllowedArtemisUrl(theiaEnv.ARTEMIS_URL, base_url, theiaEnv.GIT_URI);
     if (trustedUrl) {
       const config = vscode.workspace.getConfiguration("scorpio");
       config.update("artemis.apiBaseUrl", trustedUrl, vscode.ConfigurationTarget.Global);
