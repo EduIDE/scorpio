@@ -51,7 +51,7 @@
   },
   "contributes": {
     "configuration": {
-      "title": "Scorpio - Artemis",
+      "title": "Scorpio",
       "properties": {
         "scorpio.artemis.apiBaseUrl": {
           "order": 1,
@@ -67,6 +67,24 @@
           "editPresentation": "singlelineText",
           "type": "string",
           "format": "path"
+        },
+        "scorpio.github.clientId": {
+          "order": 10,
+          "description": "Public client ID of the GitHub OAuth App to sign in to with the device flow (no client secret). Empty turns the GitHub features off. Overridden by SCORPIO_GITHUB_CLIENT_ID.",
+          "type": "string",
+          "default": ""
+        },
+        "scorpio.github.allowPrivateRepositories": {
+          "order": 11,
+          "description": "Allow asking for the repo scope to clone and push private repositories. Overridden by SCORPIO_GITHUB_PRIVATE_REPOS.",
+          "type": "boolean",
+          "default": true
+        },
+        "scorpio.github.host": {
+          "order": 12,
+          "description": "GitHub host, e.g. a GitHub Enterprise Server. Overridden by SCORPIO_GITHUB_HOST.",
+          "type": "string",
+          "default": "github.com"
         }
       }
     },
@@ -75,8 +93,39 @@
         "command": "scorpio.restart",
         "category": "Scorpio",
         "title": "Restart Extension"
+      },
+      {
+        "command": "scorpio.github.signIn",
+        "category": "Scorpio",
+        "title": "Sign in to GitHub"
+      },
+      {
+        "command": "scorpio.github.signOut",
+        "category": "Scorpio",
+        "title": "Sign out of GitHub"
+      },
+      {
+        "command": "scorpio.github.push",
+        "category": "Scorpio",
+        "title": "Push to GitHub",
+        "icon": "$(github)"
       }
-    ]
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "scorpio.github.push",
+          "when": "scmProvider == git && scorpio.github.enabled",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "scorpio.github.signOut",
+          "when": "scorpio.github.enabled"
+        }
+      ]
+    }
   },
   "activationEvents": [
     "onStartupFinished"

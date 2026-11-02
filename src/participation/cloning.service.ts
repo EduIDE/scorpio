@@ -10,6 +10,11 @@ type CloneOptions = {
   preservedPaths?: string[];
   /** Branch, tag or commit to check out after cloning; the default branch when unset. */
   ref?: string;
+  /**
+   * The complete environment for the clone, e.g. with a GIT_ASKPASS helper for a private repository (see
+   * src/github/askpass.ts). simple-git refuses GIT_ASKPASS unless allowed, which is done only here.
+   */
+  gitEnv?: Record<string, string>;
 };
 
 type PreservedWorkspaceEntry = {
@@ -31,6 +36,7 @@ export async function cloneByGivenURL(
       destinationPath,
       options.preservedPaths ?? THEIA_PRESERVED_PATHS,
       options.ref,
+      options.gitEnv,
     );
   }
 
@@ -53,6 +59,7 @@ async function cloneIntoWorkspaceRoot(
   workspacePath: string,
   preservedPaths: string[] = [],
   ref?: string,
+  gitEnv?: Record<string, string>,
 ): Promise<string> {
   const backupRoot = await fs.mkdtemp(path.join(tmpdir(), "scorpio-workspace-clone-"));
   const preservedEntries = await movePreservedWorkspaceEntries(
@@ -67,7 +74,9 @@ async function cloneIntoWorkspaceRoot(
   try {
     await clearDirectory(workspacePath);
 
-    const gitForClone = simpleGit(workspacePath);
+    const gitForClone = gitEnv
+      ? simpleGit({ baseDir: workspacePath, unsafe: { allowUnsafeAskPass: true } }).env(gitEnv)
+      : simpleGit(workspacePath);
     await gitForClone.clone(cloneUrl.toString(), ".");
     cloneSucceeded = true;
     if (ref) {

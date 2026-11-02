@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import {
+  gitHubHostname,
   isDataBridgeEnvComplete,
   parseGitRef,
   parseTheiaEnv,
@@ -74,8 +75,25 @@ test("an Artemis launch keeps its values", () => {
       GIT_USER: "student",
       GIT_MAIL: "student@example.org",
       GRADLE_PREWARM: "deps",
+      GITHUB_CLIENT_ID: undefined,
+      GITHUB_PRIVATE_REPOS: undefined,
+      GITHUB_HOST: undefined,
     },
   );
+});
+
+test("GitHub overrides pass through, and SCORPIO_GITHUB_HOST decides what counts as GitHub", () => {
+  const env = parseTheiaEnv({
+    GIT_URI: "https://ghe.example.org/o/r.git",
+    SCORPIO_GITHUB_CLIENT_ID: "Iv1.x",
+    SCORPIO_GITHUB_PRIVATE_REPOS: "false",
+    SCORPIO_GITHUB_HOST: "https://ghe.example.org",
+  });
+  assert.equal(env.GIT_SOURCE, "github");
+  assert.equal(env.GITHUB_CLIENT_ID, "Iv1.x");
+  assert.equal(env.GITHUB_PRIVATE_REPOS, "false");
+  assert.equal(gitHubHostname("http://fake-github:8080"), "fake-github");
+  assert.equal(gitHubHostname(undefined), "github.com");
 });
 
 test("GRADLE_PREWARM defaults to daemon for Artemis and to off for other sources", () => {
