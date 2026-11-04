@@ -3,7 +3,7 @@ import simpleGit, { GitConfigScope } from "simple-git";
 import { hostname } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
-import { cloneByGivenURL } from "../participation/cloning.service";
+import { cloneByGivenURL, withCloneLock } from "../participation/cloning.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
 
@@ -79,19 +79,24 @@ export async function initTheia() {
       return;
     }
 
-    const alreadyCloned = await isRepoAlreadyCloned(workspaceFolderUri.fsPath, theiaEnv.GIT_URI);
-    if (alreadyCloned) {
-      console.log("Repository already present, skipping auto-clone");
-    } else {
-      try {
-        await cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath, {
-          mode: "workspace-root",
-        });
-      } catch (e: any) {
-        // Still write the git identity below, or a clone retried by hand commits as the wrong user.
-        console.error(e.message);
-        vscode.window.showErrorMessage("Could not clone the exercise repository");
+    const repoUri = theiaEnv.GIT_URI;
+    const workspacePath = workspaceFolderUri.fsPath;
+    try {
+      // Check inside the lock: the window that held it may have just finished the same clone.
+      const ranAlone = await withCloneLock(async () => {
+        if (await isRepoAlreadyCloned(workspacePath, repoUri)) {
+          console.log("Repository already present, skipping auto-clone");
+        } else {
+          await cloneByGivenURL(repoUri, workspacePath, { mode: "workspace-root" });
+        }
+      });
+      if (!ranAlone) {
+        console.log("Another window is cloning the repository, skipping auto-clone");
       }
+    } catch (e: any) {
+      // Still write the git identity below, or a clone retried by hand commits as the wrong user.
+      console.error(e.message);
+      vscode.window.showErrorMessage("Could not clone the exercise repository");
     }
 
     // Pre-warm Gradle in the background every session so the student's build is faster,
