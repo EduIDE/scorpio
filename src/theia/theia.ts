@@ -14,6 +14,7 @@ export let theiaEnv: TheiaEnv = {
   GIT_USER: undefined,
   GIT_MAIL: undefined,
   GRADLE_PREWARM: DEFAULT_GRADLE_PREWARM,
+  GRADLE_PREWARM_AUTO_CONFIRM: true,
 };
 
 export async function loadTheiaEnv(): Promise<void> {
@@ -90,7 +91,11 @@ export async function initTheia() {
     // Pre-warm Gradle in the background every session so the student's build is faster,
     // even on restarts where the repo is already present but the daemon is cold.
     // Depth is controlled by GRADLE_PREWARM; warmupGradleDaemon skips non-Gradle repos.
-    warmupGradleDaemon(workspaceFolderUri.fsPath, theiaEnv.GRADLE_PREWARM);
+    void warmupGradleDaemon(
+      workspaceFolderUri.fsPath,
+      theiaEnv.GRADLE_PREWARM,
+      theiaEnv.GRADLE_PREWARM_AUTO_CONFIRM,
+    );
   }
 
   if (theiaEnv.THEIA_FLAG) {
