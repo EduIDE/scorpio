@@ -101,6 +101,10 @@ export async function initTheia() {
   if (theiaEnv.THEIA_FLAG) {
     try {
       const git = simpleGit();
+      // A second window's data bridge can stay empty, so its fallback must not replace the identity.
+      if (!theiaEnv.GIT_USER && (await git.getConfig("user.name", GitConfigScope.global)).value) {
+        return;
+      }
       const hostnameConst = hostname();
       theiaEnv.GIT_USER = theiaEnv.GIT_USER ? theiaEnv.GIT_USER : hostnameConst;
       theiaEnv.GIT_MAIL = theiaEnv.GIT_MAIL
