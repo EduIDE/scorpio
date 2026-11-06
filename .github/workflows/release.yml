@@ -21,6 +21,8 @@ jobs:
     needs: package
     permissions:
       contents: write
+      # Open VSX trusted publishing exchanges the workflow's OIDC token for a short-lived one.
+      id-token: write
     environment: prod
     steps:
       # Check out current repository
@@ -51,20 +53,17 @@ jobs:
           TAG=${{ github.event.release.tag_name }}
           echo "VERSION=${TAG#v}" >> $GITHUB_OUTPUT
 
-      # release to VS Code Marketplace
-      - name: Publish Plugin
-        run: npx vsce publish --packagePath ./artemis-scorpio-${{ steps.strip-v.outputs.VERSION }}.vsix -p ${{ secrets.PUBLISH_TOKEN }}
-
+      # Trusted publisher registered on open-vsx.org for aet-tum.artemis-scorpio, so no token is stored.
       - name: Publish to VSX Registry
         id: vsx-publish
         run: |
-          npx ovsx publish -p ${{ secrets.PUBLISH_VSX }} ./artemis-scorpio-${{ steps.strip-v.outputs.VERSION }}.vsix
+          npx ovsx@1.3.0 publish --trusted-publishing ./artemis-scorpio-${{ steps.strip-v.outputs.VERSION }}.vsix
 
       # Upload artifact as a release asset
       - name: Upload Release Asset
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ github.event.release.tag_name }} ./artemis-scorpio-${{ steps.strip-v.outputs.VERSION }}.vsix#scorpio-${{ github.event.release.tag_name }}.vsix
+        run: gh release upload --clobber ${{ github.event.release.tag_name }} ./artemis-scorpio-${{ steps.strip-v.outputs.VERSION }}.vsix#scorpio-${{ github.event.release.tag_name }}.vsix
 
       # personal access token with metadata:r actions:rw contents:rw
       - name: Trigger Theia Build

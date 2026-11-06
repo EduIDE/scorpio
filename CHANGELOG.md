@@ -12,3 +12,4 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - A failed clone no longer stops the extension from starting or skips the git identity
 - Two browser windows starting together no longer both clear the workspace and clone
 - Added a test suite for session startup, run with `npm test`
+- Publish only to Open VSX, as `aet-tum.artemis-scorpio`, through trusted publishing. The VS Code Marketplace release and its token are gone
