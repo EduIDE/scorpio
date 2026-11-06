@@ -6,4 +6,5 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+- Fix 51 Dependabot security alerts by updating vulnerable transitive dependencies
 - Initial release

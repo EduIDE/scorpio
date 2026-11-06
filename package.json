@@ -85,5 +85,10 @@
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.95.0"
+  },
+  "overrides": {
+    "simple-git": {
+      "@simple-git/argv-parser": "2.0.1"
+    }
   }
 }
