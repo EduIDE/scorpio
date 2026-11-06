@@ -6,6 +6,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+- Fix 51 Dependabot security alerts by updating vulnerable transitive dependencies
 - Initial release
 - `GRADLE_PREWARM_AUTO_CONFIRM=false` asks the student before prewarming runs the repository's Gradle wrapper
 - A second browser window no longer replaces the git identity with the pod hostname
