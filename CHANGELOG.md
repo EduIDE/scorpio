@@ -15,3 +15,5 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Two browser windows starting together no longer both clear the workspace and clone
 - Added a test suite for session startup, run with `npm test`
 - Publish only to Open VSX, as `aet-tum.artemis-scorpio`, through trusted publishing. The VS Code Marketplace release and its token are gone
+- A release no longer dispatches a Theia blueprint build, since nothing receives that event anymore
+- CI lints, tests and builds every push to main, not only pull requests

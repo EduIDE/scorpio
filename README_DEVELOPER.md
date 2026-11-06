@@ -39,4 +39,4 @@ npm run package        # vsce package
 3. Choose a tag with the new version number (e.g. `v1.5.0`)
 4. Generate release notes automatically
 5. An admin reviews and approves the release
-6. GitHub builds, uploads the artifact, and publishes to the marketplace
+6. GitHub builds, uploads the artifact to the release, and publishes to Open VSX
