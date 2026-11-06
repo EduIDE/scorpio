@@ -26,6 +26,7 @@
     "compile:extension": "webpack",
     "watch:extension": "webpack --watch",
     "lint": "eslint src",
+    "test": "tsc --outDir out && node --test out/src/test/*.test.js",
     "package": "vsce package",
     "vscode:prepublish": "npm run build",
     "fmt": "oxfmt",
