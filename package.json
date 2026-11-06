@@ -15,7 +15,7 @@
     "type": "git",
     "url": "https://github.com/EduIDE/scorpio.git"
   },
-  "publisher": "tum-aet",
+  "publisher": "aet-tum",
   "main": "./dist/extension.js",
   "scripts": {
     "install:all": "npm install --no-scripts",
