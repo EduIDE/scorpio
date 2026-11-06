@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import simpleGit, { GitConfigScope } from "simple-git";
+import { GitConfigScope, simpleGit } from "simple-git";
 import { hostname } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
