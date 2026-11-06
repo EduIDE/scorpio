@@ -83,9 +83,15 @@ export async function initTheia() {
     if (alreadyCloned) {
       console.log("Repository already present, skipping auto-clone");
     } else {
-      await cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath, {
-        mode: "workspace-root",
-      });
+      try {
+        await cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath, {
+          mode: "workspace-root",
+        });
+      } catch (e: any) {
+        // Still write the git identity below, or a clone retried by hand commits as the wrong user.
+        console.error(e.message);
+        vscode.window.showErrorMessage("Could not clone the exercise repository");
+      }
     }
 
     // Pre-warm Gradle in the background every session so the student's build is faster,
