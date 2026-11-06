@@ -6,6 +6,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+- simple-git 4 and minimatch 11, fixing the remaining Dependabot alerts
 - Fix 51 Dependabot security alerts by updating vulnerable transitive dependencies
 - Initial release
 - `GRADLE_PREWARM_AUTO_CONFIRM=false` asks the student before prewarming runs the repository's Gradle wrapper
