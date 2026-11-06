@@ -9,6 +9,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   dependency-review:
     uses: EduIDE/.github/.github/workflows/dependency-review.yml@v1
