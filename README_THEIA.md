@@ -14,6 +14,7 @@ Scorpio reads the following variables from the Theia environment:
 | `GIT_MAIL`       | No       | Git email (falls back to `<username>@artemis-theia.de`)             |
 | `THEIA`          | No       | Explicit Theia flag (auto-detected via DataBridge)                  |
 | `GRADLE_PREWARM` | No       | Gradle pre-warm level: `off`, `daemon` (default), `deps`, or `full` |
+| `GRADLE_PREWARM_AUTO_CONFIRM` | No | `false` asks the student before pre-warming runs the repository's Gradle wrapper. Default `true` |
 
 ## Environment Strategy
 

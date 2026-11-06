@@ -28,6 +28,7 @@ npm install
 npm run build          # webpack production build
 npm run watch          # webpack watch mode
 npm run lint           # eslint
+npm test               # node:test with a stubbed vscode module
 npm run package        # vsce package
 ```
 

@@ -18,6 +18,7 @@ export type TheiaEnv = {
   GIT_USER: string | undefined;
   GIT_MAIL: string | undefined;
   GRADLE_PREWARM: GradlePrewarmLevel;
+  GRADLE_PREWARM_AUTO_CONFIRM: boolean;
 };
 
 const ENV_KEYS = [
@@ -27,6 +28,7 @@ const ENV_KEYS = [
   "GIT_USER",
   "GIT_MAIL",
   "GRADLE_PREWARM",
+  "GRADLE_PREWARM_AUTO_CONFIRM",
 ] as const satisfies Array<string>;
 
 const REQUIRED_ENV_KEYS = ["ARTEMIS_URL", "GIT_URI"] as const;
@@ -50,6 +52,15 @@ function parseGradlePrewarm(value: string | undefined): GradlePrewarmLevel {
   return DEFAULT_GRADLE_PREWARM;
 }
 
+/**
+ * Prewarming runs the Gradle wrapper of the cloned repository. Exercise templates come from a
+ * trusted Artemis by default, so it runs without asking. Set GRADLE_PREWARM_AUTO_CONFIRM to false
+ * where they are not trusted: the student then has to confirm first.
+ */
+function parseGradlePrewarmAutoConfirm(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() !== "false";
+}
+
 export interface TheiaEnvStrategy {
   load(): Promise<TheiaEnv>;
 }
@@ -67,6 +78,7 @@ function parseTheiaEnv(
     GIT_USER: env["GIT_USER"],
     GIT_MAIL: env["GIT_MAIL"],
     GRADLE_PREWARM: parseGradlePrewarm(env["GRADLE_PREWARM"]),
+    GRADLE_PREWARM_AUTO_CONFIRM: parseGradlePrewarmAutoConfirm(env["GRADLE_PREWARM_AUTO_CONFIRM"]),
   };
 }
 
