@@ -8,6 +8,8 @@ type CloneMode = "subdirectory" | "workspace-root";
 type CloneOptions = {
   mode?: CloneMode;
   preservedPaths?: string[];
+  /** Branch, tag or commit to check out after cloning; the default branch when unset. */
+  ref?: string;
 };
 
 type PreservedWorkspaceEntry = {
@@ -61,6 +63,7 @@ export async function cloneByGivenURL(
       cloneUrl,
       destinationPath,
       options.preservedPaths ?? THEIA_PRESERVED_PATHS,
+      options.ref,
     );
   }
 
@@ -82,6 +85,7 @@ async function cloneIntoWorkspaceRoot(
   cloneUrl: URL,
   workspacePath: string,
   preservedPaths: string[] = [],
+  ref?: string,
 ): Promise<string> {
   const backupRoot = await fs.mkdtemp(path.join(tmpdir(), "scorpio-workspace-clone-"));
   const preservedEntries = await movePreservedWorkspaceEntries(
@@ -99,6 +103,11 @@ async function cloneIntoWorkspaceRoot(
     const gitForClone = simpleGit(workspacePath);
     await gitForClone.clone(cloneUrl.toString(), ".");
     cloneSucceeded = true;
+    if (ref) {
+      // A full clone has every branch and tag, so one checkout covers branches, tags and commits.
+      // "--" keeps git from reading the ref as a path.
+      await gitForClone.raw(["checkout", "--quiet", ref, "--"]);
+    }
 
     return workspacePath;
   } catch (e: any) {

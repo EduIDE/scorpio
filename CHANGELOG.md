@@ -6,6 +6,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+- `GIT_REF` and `GIT_SOURCE`, a clone error notification with credentials redacted, and no Gradle pre-warm by default for repositories outside Artemis
 - Warm-pool sessions opened from a GitHub link now clone `GIT_URI` without waiting for `ARTEMIS_URL`
 - simple-git 4 and minimatch 11, fixing the remaining Dependabot alerts
 - Fix 51 Dependabot security alerts by updating vulnerable transitive dependencies

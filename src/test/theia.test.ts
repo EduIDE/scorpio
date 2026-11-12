@@ -113,6 +113,7 @@ test("a failed clone is reported and the identity is still written", async () =>
 
   await initTheia();
 
-  assert.deepEqual(vscodeStub.window.errors, ["Could not clone the exercise repository"]);
+  assert.equal(vscodeStub.window.errors.length, 1);
+  assert.match(vscodeStub.window.errors[0], /^Could not clone file:\/\/.*missing: /);
   assert.equal(globalConfig("user.name"), "Ada Lovelace");
 });

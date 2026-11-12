@@ -6,15 +6,21 @@ Scorpio is primarily designed for Theia/EduIDE environments. All core features (
 
 Scorpio reads the following variables from the Theia environment:
 
-| Variable         | Required | Purpose                                                             |
-| ---------------- | -------- | ------------------------------------------------------------------- |
-| `ARTEMIS_URL`    | No       | Artemis server base URL (Artemis exercises only)                    |
-| `GIT_URI`        | No       | Repository URL to clone; nothing is cloned without it               |
-| `GIT_USER`       | No       | Git username (falls back to hostname)                               |
-| `GIT_MAIL`       | No       | Git email (falls back to `<username>@artemis-theia.de`)             |
-| `THEIA`          | No       | Explicit Theia flag (auto-detected via DataBridge)                  |
-| `GRADLE_PREWARM` | No       | Gradle pre-warm level: `off`, `daemon` (default), `deps`, or `full` |
-| `GRADLE_PREWARM_AUTO_CONFIRM` | No | `false` asks the student before pre-warming runs the repository's Gradle wrapper. Default `true` |
+| Variable                      | Required | Purpose                                                                                                                    |
+| ----------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `ARTEMIS_URL`                 | No       | Artemis server base URL (Artemis exercises only)                                                                           |
+| `GIT_URI`                     | No       | Repository URL to clone; nothing is cloned without it                                                                      |
+| `GIT_USER`                    | No       | Git username (falls back to hostname)                                                                                      |
+| `GIT_MAIL`                    | No       | Git email (falls back to `<username>@artemis-theia.de`)                                                                    |
+| `THEIA`                       | No       | Explicit Theia flag (auto-detected via DataBridge)                                                                         |
+| `GRADLE_PREWARM`              | No       | Gradle pre-warm level: `off`, `daemon`, `deps`, or `full`. Default `daemon` for Artemis, `off` for other sources           |
+| `GRADLE_PREWARM_AUTO_CONFIRM` | No       | `false` asks the student before pre-warming runs the repository's Gradle wrapper. Default `true`                           |
+| `GIT_REF`                     | No       | Branch, tag or commit to check out after cloning; default branch if unset                                                  |
+| `GIT_SOURCE`                  | No       | `artemis`, `github` or `other`. Default: `artemis` with `ARTEMIS_URL`, `github` for a `github.com` `GIT_URI`, else `other` |
+
+A failed clone is reported in a notification, with credentials removed from the URL and git's message.
+
+Pre-warming runs the repository's own `./gradlew` and build scripts, so it is off by default for repositories that do not come from Artemis.
 
 ## Environment Strategy
 

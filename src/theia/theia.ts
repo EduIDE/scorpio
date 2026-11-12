@@ -6,11 +6,14 @@ import * as fs from "fs/promises";
 import { cloneByGivenURL, withCloneLock } from "../participation/cloning.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
+import { redactUrlCredentials } from "./env-parsing";
 
 export let theiaEnv: TheiaEnv = {
   THEIA_FLAG: false,
   ARTEMIS_URL: undefined,
   GIT_URI: undefined,
+  GIT_REF: undefined,
+  GIT_SOURCE: "other",
   GIT_USER: undefined,
   GIT_MAIL: undefined,
   GRADLE_PREWARM: DEFAULT_GRADLE_PREWARM,
@@ -81,13 +84,17 @@ export async function initTheia() {
 
     const repoUri = theiaEnv.GIT_URI;
     const workspacePath = workspaceFolderUri.fsPath;
+    let cloned = true;
     try {
       // Check inside the lock: the window that held it may have just finished the same clone.
       const ranAlone = await withCloneLock(async () => {
         if (await isRepoAlreadyCloned(workspacePath, repoUri)) {
           console.log("Repository already present, skipping auto-clone");
         } else {
-          await cloneByGivenURL(repoUri, workspacePath, { mode: "workspace-root" });
+          await cloneByGivenURL(repoUri, workspacePath, {
+            mode: "workspace-root",
+            ref: theiaEnv.GIT_REF,
+          });
         }
       });
       if (!ranAlone) {
@@ -95,18 +102,27 @@ export async function initTheia() {
       }
     } catch (e: any) {
       // Still write the git identity below, or a clone retried by hand commits as the wrong user.
-      console.error(e.message);
-      vscode.window.showErrorMessage("Could not clone the exercise repository");
+      // Without the notification the student just sees an empty workspace. Artemis URLs carry a
+      // token, so neither the URL nor git's message is shown unredacted.
+      const message = redactUrlCredentials(`${e?.message ?? e}`);
+      console.error(message);
+      vscode.window.showErrorMessage(
+        `Could not clone ${redactUrlCredentials(repoUri.toString())}: ${message}`,
+      );
+      cloned = false;
     }
 
     // Pre-warm Gradle in the background every session so the student's build is faster,
     // even on restarts where the repo is already present but the daemon is cold.
-    // Depth is controlled by GRADLE_PREWARM; warmupGradleDaemon skips non-Gradle repos.
-    void warmupGradleDaemon(
-      workspaceFolderUri.fsPath,
-      theiaEnv.GRADLE_PREWARM,
-      theiaEnv.GRADLE_PREWARM_AUTO_CONFIRM,
-    );
+    // Depth is controlled by GRADLE_PREWARM (off by default outside Artemis); warmupGradleDaemon
+    // skips non-Gradle repos.
+    if (cloned) {
+      void warmupGradleDaemon(
+        workspacePath,
+        theiaEnv.GRADLE_PREWARM,
+        theiaEnv.GRADLE_PREWARM_AUTO_CONFIRM,
+      );
+    }
   }
 
   if (theiaEnv.THEIA_FLAG) {
