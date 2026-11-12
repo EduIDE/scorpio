@@ -27,6 +27,7 @@ export type TheiaEnv = {
   GIT_USER: string | undefined;
   GIT_MAIL: string | undefined;
   GRADLE_PREWARM: GradlePrewarmLevel;
+  GRADLE_PREWARM_AUTO_CONFIRM: boolean;
   /** Per-installation overrides of the scorpio.github.* settings, as raw strings (see src/github/config.ts). */
   GITHUB_CLIENT_ID: string | undefined;
   GITHUB_PRIVATE_REPOS: string | undefined;
@@ -42,6 +43,7 @@ export const ENV_KEYS = [
   "GIT_USER",
   "GIT_MAIL",
   "GRADLE_PREWARM",
+  "GRADLE_PREWARM_AUTO_CONFIRM",
   "SCORPIO_GITHUB_CLIENT_ID",
   "SCORPIO_GITHUB_PRIVATE_REPOS",
   "SCORPIO_GITHUB_HOST",
@@ -125,6 +127,15 @@ export function parseGitRef(value: string | undefined): string | undefined {
 }
 
 /**
+ * Prewarming runs the Gradle wrapper of the cloned repository. Exercise templates come from a
+ * trusted Artemis by default, so it runs without asking. Set GRADLE_PREWARM_AUTO_CONFIRM to false
+ * where they are not trusted: the student then has to confirm first.
+ */
+export function parseGradlePrewarmAutoConfirm(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() !== "false";
+}
+
+/**
  * Whether the data bridge has delivered the session's environment. The operator injects all of a session's variables
  * in one request, so the first of them to show up means all have.
  *
@@ -154,6 +165,7 @@ export function parseTheiaEnv(
       env["GRADLE_PREWARM"],
       source === "artemis" ? DEFAULT_GRADLE_PREWARM : DEFAULT_GRADLE_PREWARM_UNTRUSTED,
     ),
+    GRADLE_PREWARM_AUTO_CONFIRM: parseGradlePrewarmAutoConfirm(env["GRADLE_PREWARM_AUTO_CONFIRM"]),
     GITHUB_CLIENT_ID: env["SCORPIO_GITHUB_CLIENT_ID"],
     GITHUB_PRIVATE_REPOS: env["SCORPIO_GITHUB_PRIVATE_REPOS"],
     GITHUB_HOST: env["SCORPIO_GITHUB_HOST"],

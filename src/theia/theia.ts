@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import simpleGit, { GitConfigScope } from "simple-git";
+import { GitConfigScope, simpleGit } from "simple-git";
 import { hostname } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
-import { cloneByGivenURL } from "../participation/cloning.service";
+import { cloneByGivenURL, withCloneLock } from "../participation/cloning.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
 import { redactUrlCredentials } from "./env-parsing";
@@ -18,6 +18,7 @@ export let theiaEnv: TheiaEnv = {
   GIT_USER: undefined,
   GIT_MAIL: undefined,
   GRADLE_PREWARM: DEFAULT_GRADLE_PREWARM,
+  GRADLE_PREWARM_AUTO_CONFIRM: true,
   GITHUB_CLIENT_ID: undefined,
   GITHUB_PRIVATE_REPOS: undefined,
   GITHUB_HOST: undefined,
@@ -52,7 +53,7 @@ function normalizeRepoUrl(raw: string): string {
   }
 }
 
-async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promise<boolean> {
+export async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promise<boolean> {
   const gitPath = path.join(workspacePath, ".git");
   try {
     await fs.stat(gitPath);
@@ -85,32 +86,40 @@ export async function initTheia(github?: GitHubIntegration) {
       return;
     }
 
-    const alreadyCloned = await isRepoAlreadyCloned(workspaceFolderUri.fsPath, theiaEnv.GIT_URI);
+    const repoUri = theiaEnv.GIT_URI;
+    const workspacePath = workspaceFolderUri.fsPath;
     let cloned = true;
-    if (alreadyCloned) {
-      console.log("Repository already present, skipping auto-clone");
-    } else {
-      try {
-        await cloneByGivenURL(theiaEnv.GIT_URI, workspaceFolderUri.fsPath, {
-          mode: "workspace-root",
-          ref: theiaEnv.GIT_REF,
-        });
-      } catch (e: any) {
-        cloned = false;
-        // Without this the student just sees an empty workspace. Artemis URLs carry a token, so
-        // neither the URL nor git's message is shown unredacted.
-        const message = redactUrlCredentials(`${e?.message ?? e}`);
-        console.error(message);
-        // A private GitHub repository fails here too; the GitHub module then offers to sign in.
-        const handled =
-          theiaEnv.GIT_SOURCE === "github" &&
-          github !== undefined &&
-          (await github.handleCloneFailure(theiaEnv.GIT_URI, workspaceFolderUri.fsPath));
-        if (!handled) {
-          vscode.window.showErrorMessage(
-            `Could not clone ${redactUrlCredentials(theiaEnv.GIT_URI.toString())}: ${message}`,
-          );
+    try {
+      // Check inside the lock: the window that held it may have just finished the same clone.
+      const ranAlone = await withCloneLock(async () => {
+        if (await isRepoAlreadyCloned(workspacePath, repoUri)) {
+          console.log("Repository already present, skipping auto-clone");
+        } else {
+          await cloneByGivenURL(repoUri, workspacePath, {
+            mode: "workspace-root",
+            ref: theiaEnv.GIT_REF,
+          });
         }
+      });
+      if (!ranAlone) {
+        console.log("Another window is cloning the repository, skipping auto-clone");
+      }
+    } catch (e: any) {
+      // Still write the git identity below, or a clone retried by hand commits as the wrong user.
+      // Without the notification the student just sees an empty workspace. Artemis URLs carry a
+      // token, so neither the URL nor git's message is shown unredacted.
+      cloned = false;
+      const message = redactUrlCredentials(`${e?.message ?? e}`);
+      console.error(message);
+      // A private GitHub repository fails here too; the GitHub module then offers to sign in.
+      const handled =
+        theiaEnv.GIT_SOURCE === "github" &&
+        github !== undefined &&
+        (await github.handleCloneFailure(repoUri, workspacePath));
+      if (!handled) {
+        vscode.window.showErrorMessage(
+          `Could not clone ${redactUrlCredentials(repoUri.toString())}: ${message}`,
+        );
       }
     }
 
@@ -119,13 +128,21 @@ export async function initTheia(github?: GitHubIntegration) {
     // Depth is controlled by GRADLE_PREWARM (off by default outside Artemis); warmupGradleDaemon
     // skips non-Gradle repos.
     if (cloned) {
-      warmupGradleDaemon(workspaceFolderUri.fsPath, theiaEnv.GRADLE_PREWARM);
+      void warmupGradleDaemon(
+        workspacePath,
+        theiaEnv.GRADLE_PREWARM,
+        theiaEnv.GRADLE_PREWARM_AUTO_CONFIRM,
+      );
     }
   }
 
   if (theiaEnv.THEIA_FLAG) {
     try {
       const git = simpleGit();
+      // A second window's data bridge can stay empty, so its fallback must not replace the identity.
+      if (!theiaEnv.GIT_USER && (await git.getConfig("user.name", GitConfigScope.global)).value) {
+        return;
+      }
       const hostnameConst = hostname();
       theiaEnv.GIT_USER = theiaEnv.GIT_USER ? theiaEnv.GIT_USER : hostnameConst;
       theiaEnv.GIT_MAIL = theiaEnv.GIT_MAIL

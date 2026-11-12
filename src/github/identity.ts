@@ -3,7 +3,7 @@
  * Artemis identity) stay untouched.
  */
 
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 import { isSessionIdentity } from "./repo";
 
 export type UnpushedCommit = { hash: string; parents: string[]; email: string };
@@ -55,7 +55,8 @@ export async function reauthorUnpushedCommits(repoPath: string): Promise<number>
   }
   const base = commits[0].parents[0];
   // Non-interactive: "--exec" without "--interactive" opens no editor.
-  await simpleGit(repoPath).raw([
+  // simple-git blocks --exec unless allowed; the command is a constant, never user input.
+  await simpleGit({ baseDir: repoPath, unsafe: { allowUnsafeExec: true } }).raw([
     "rebase",
     "--autostash",
     "--exec",

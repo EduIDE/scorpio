@@ -1,4 +1,4 @@
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 import { tmpdir } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
@@ -12,7 +12,7 @@ type CloneOptions = {
   ref?: string;
   /**
    * The complete environment for the clone, e.g. with a GIT_ASKPASS helper for a private repository (see
-   * src/github/askpass.ts). simple-git refuses GIT_ASKPASS unless allowed, which is done only here.
+   * src/github/askpass.ts). simple-git refuses GIT_ASKPASS and GIT_TERMINAL_PROMPT unless allowed, which is done only here.
    */
   gitEnv?: Record<string, string>;
 };
@@ -24,6 +24,39 @@ type PreservedWorkspaceEntry = {
 };
 
 const THEIA_PRESERVED_PATHS = [".vscode/settings.json", ".theia", "persisted", "lost+found"];
+
+const CLONE_LOCK_PATH = path.join(tmpdir(), "scorpio-workspace-clone.lock");
+// shortcut: assumes a clone finishes within this time, raise it if a window can replace a slow clone.
+const CLONE_LOCK_STALE_MS = 10 * 60 * 1000;
+
+/**
+ * Runs `clone` unless another browser window is already cloning. Cloning clears the workspace, so
+ * two windows starting together must not both do it. Returns whether `clone` ran.
+ */
+export async function withCloneLock(
+  clone: () => Promise<void>,
+  lockPath: string = CLONE_LOCK_PATH,
+  staleMs: number = CLONE_LOCK_STALE_MS,
+): Promise<boolean> {
+  try {
+    await fs.mkdir(lockPath);
+  } catch {
+    // The window holding the lock closed mid-clone, so nothing would ever release it.
+    const lockAge = Date.now() - (await fs.stat(lockPath)).mtimeMs;
+    if (lockAge < staleMs) {
+      return false;
+    }
+    await fs.rm(lockPath, { recursive: true, force: true });
+    await fs.mkdir(lockPath);
+  }
+
+  try {
+    await clone();
+    return true;
+  } finally {
+    await fs.rm(lockPath, { recursive: true, force: true });
+  }
+}
 
 export async function cloneByGivenURL(
   cloneUrl: URL,
@@ -75,7 +108,11 @@ async function cloneIntoWorkspaceRoot(
     await clearDirectory(workspacePath);
 
     const gitForClone = gitEnv
-      ? simpleGit({ baseDir: workspacePath, unsafe: { allowUnsafeAskPass: true } }).env(gitEnv)
+      ? simpleGit({
+          baseDir: workspacePath,
+          unsafe: { allowUnsafeAskPass: true },
+          allowEnvironment: ["GIT_ASKPASS", "GIT_TERMINAL_PROMPT"],
+        }).env(gitEnv)
       : simpleGit(workspacePath);
     await gitForClone.clone(cloneUrl.toString(), ".");
     cloneSucceeded = true;

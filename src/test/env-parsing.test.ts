@@ -7,7 +7,7 @@ import {
   parseTheiaEnv,
   redactUrlCredentials,
   resolveGitSource,
-} from "./env-parsing";
+} from "../theia/env-parsing";
 
 const GITHUB_REPO = "https://github.com/octocat/Hello-World.git";
 
@@ -75,6 +75,7 @@ test("an Artemis launch keeps its values", () => {
       GIT_USER: "student",
       GIT_MAIL: "student@example.org",
       GRADLE_PREWARM: "deps",
+      GRADLE_PREWARM_AUTO_CONFIRM: true,
       GITHUB_CLIENT_ID: undefined,
       GITHUB_PRIVATE_REPOS: undefined,
       GITHUB_HOST: undefined,
@@ -180,4 +181,12 @@ test("credentials in URLs are redacted", () => {
   );
   assert.equal(redactUrlCredentials("https://github.com/o/r.git"), "https://github.com/o/r.git");
   assert.equal(redactUrlCredentials("mail me at a@b.example"), "mail me at a@b.example");
+});
+
+test("GRADLE_PREWARM_AUTO_CONFIRM defaults to true and only an explicit false turns it off", () => {
+  assert.equal(parseTheiaEnv({}).GRADLE_PREWARM_AUTO_CONFIRM, true);
+  assert.equal(
+    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: " False " }).GRADLE_PREWARM_AUTO_CONFIRM,
+    false,
+  );
 });

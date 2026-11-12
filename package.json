@@ -15,7 +15,7 @@
     "type": "git",
     "url": "https://github.com/EduIDE/scorpio.git"
   },
-  "publisher": "tum-aet",
+  "publisher": "aet-tum",
   "main": "./dist/extension.js",
   "scripts": {
     "install:all": "npm install --no-scripts",
@@ -26,15 +26,14 @@
     "compile:extension": "webpack",
     "watch:extension": "webpack --watch",
     "lint": "eslint src",
-    "pretest": "tsc -p . --outDir out",
-    "test": "node --test $(find out/src -name '*.test.js')",
+    "test": "tsc --outDir out && node --test out/src/test/*.test.js",
     "package": "vsce package",
     "vscode:prepublish": "npm run build",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check"
   },
   "dependencies": {
-    "simple-git": "^3.27.0"
+    "simple-git": "^4.0.2"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -43,7 +42,7 @@
     "@typescript-eslint/parser": "^8.9.0",
     "@vscode/vsce": "^3.1.1",
     "eslint": "^9.39.3",
-    "oxfmt": "^0.31.0",
+    "oxfmt": "^0.75.0",
     "ts-loader": "^9.5.1",
     "typescript": "^5.5.4",
     "webpack": "^5.93.0",
@@ -136,5 +135,8 @@
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.95.0"
+  },
+  "overrides": {
+    "minimatch@^10.0.0": "^11.0.1"
   }
 }

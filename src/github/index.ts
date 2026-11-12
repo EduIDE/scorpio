@@ -124,6 +124,13 @@ export function activateGitHub(
 
   return {
     handleCloneFailure: (uri, workspacePath) =>
-      handleCloneFailure(session, uri, workspacePath, env.GIT_REF, env.GRADLE_PREWARM),
+      handleCloneFailure(
+        session,
+        uri,
+        workspacePath,
+        env.GIT_REF,
+        env.GRADLE_PREWARM,
+        env.GRADLE_PREWARM_AUTO_CONFIRM,
+      ),
   };
 }

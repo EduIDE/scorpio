@@ -4,16 +4,21 @@ import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { GitHubApi } from "./api";
-import { baseGitEnv, withAskpass } from "./askpass";
-import { resolveGitHubConfig } from "./config";
-import { DeviceFlowError, pollForToken, requestDeviceCode, type FetchLike } from "./device-flow";
+import { GitHubApi } from "../github/api";
+import { baseGitEnv, withAskpass } from "../github/askpass";
+import { resolveGitHubConfig } from "../github/config";
+import {
+  DeviceFlowError,
+  pollForToken,
+  requestDeviceCode,
+  type FetchLike,
+} from "../github/device-flow";
 import {
   listUnpushedCommits,
   reauthorUnpushedCommits,
   sessionAuthoredCommits,
   setRepositoryIdentity,
-} from "./identity";
+} from "../github/identity";
 import {
   appAuthorizationUrl,
   compareUrl,
@@ -25,7 +30,7 @@ import {
   parseRepoFromUrl,
   parseScopes,
   sameRepository,
-} from "./repo";
+} from "../github/repo";
 
 const config = resolveGitHubConfig({ clientId: "Iv1.public" }, {});
 
@@ -165,10 +170,15 @@ test("repo: recognizes an organization's OAuth App access restriction", () => {
     { org: "course-org" },
   );
   assert.deepEqual(
-    orgAccessRestriction("see https://docs.github.com/articles/restricting-access-to-your-organization-s-data/"),
+    orgAccessRestriction(
+      "see https://docs.github.com/articles/restricting-access-to-your-organization-s-data/",
+    ),
     { org: undefined },
   );
-  assert.equal(orgAccessRestriction("remote: Permission to ada/task.git denied to bob."), undefined);
+  assert.equal(
+    orgAccessRestriction("remote: Permission to ada/task.git denied to bob."),
+    undefined,
+  );
   assert.equal(orgAccessRestriction("Could not read ada/task: Bad credentials"), undefined);
 });
 
@@ -178,7 +188,9 @@ test("repo: the student's page for the OAuth App", () => {
     "https://github.com/settings/connections/applications/Iv1.public",
   );
   assert.equal(
-    appAuthorizationUrl(resolveGitHubConfig({ clientId: "abc", host: "http://fake-github:8080" }, {})),
+    appAuthorizationUrl(
+      resolveGitHubConfig({ clientId: "abc", host: "http://fake-github:8080" }, {}),
+    ),
     "http://fake-github:8080/settings/connections/applications/abc",
   );
 });

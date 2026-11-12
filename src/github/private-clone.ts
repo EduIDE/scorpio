@@ -4,7 +4,8 @@
  */
 
 import * as vscode from "vscode";
-import { cloneByGivenURL } from "../participation/cloning.service";
+import { cloneByGivenURL, withCloneLock } from "../participation/cloning.service";
+import { isRepoAlreadyCloned } from "../theia/theia";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import type { GitHubSession } from "./session";
 import { withAskpass } from "./askpass";
@@ -23,6 +24,7 @@ export async function handleCloneFailure(
   workspacePath: string,
   ref: string | undefined,
   prewarm: GradlePrewarmLevel,
+  prewarmAutoConfirm: boolean,
 ): Promise<boolean> {
   const repo = parseRepoFromUrl(uri.toString(), session.config);
   if (!repo) {
@@ -41,7 +43,7 @@ export async function handleCloneFailure(
     );
     return true;
   }
-  void offerPrivateClone(session, repo, uri, workspacePath, ref, prewarm);
+  void offerPrivateClone(session, repo, uri, workspacePath, ref, prewarm, prewarmAutoConfirm);
   return true;
 }
 
@@ -52,6 +54,7 @@ async function offerPrivateClone(
   workspacePath: string,
   ref: string | undefined,
   prewarm: GradlePrewarmLevel,
+  prewarmAutoConfirm: boolean,
 ): Promise<void> {
   const choice = await vscode.window.showInformationMessage(
     `${repo.owner}/${repo.repo} is private or does not exist. Sign in to GitHub to clone it.`,
@@ -60,7 +63,7 @@ async function offerPrivateClone(
   if (!choice || !(await session.ensureSignedIn("repo"))) {
     return;
   }
-  await clonePrivate(session, repo, uri, workspacePath, ref, prewarm);
+  await clonePrivate(session, repo, uri, workspacePath, ref, prewarm, prewarmAutoConfirm);
 }
 
 export async function clonePrivate(
@@ -70,6 +73,7 @@ export async function clonePrivate(
   workspacePath: string,
   ref: string | undefined,
   prewarm: GradlePrewarmLevel,
+  prewarmAutoConfirm: boolean,
 ): Promise<boolean> {
   try {
     if (!(await session.api().getRepo(repo))) {
@@ -78,16 +82,28 @@ export async function clonePrivate(
       );
       return false;
     }
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: `Cloning ${repo.owner}/${repo.repo}…`,
-      },
-      () =>
-        withAskpass(session.user!.login, session.token!, (gitEnv) =>
-          cloneByGivenURL(uri, workspacePath, { mode: "workspace-root", ref, gitEnv }),
-        ),
-    );
+    // The startup lock is long released by now, so take it again: another window may be cloning.
+    const ranAlone = await withCloneLock(async () => {
+      if (await isRepoAlreadyCloned(workspacePath, uri)) {
+        return;
+      }
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `Cloning ${repo.owner}/${repo.repo}…`,
+        },
+        () =>
+          withAskpass(session.user!.login, session.token!, (gitEnv) =>
+            cloneByGivenURL(uri, workspacePath, { mode: "workspace-root", ref, gitEnv }),
+          ),
+      );
+    });
+    if (!ranAlone) {
+      vscode.window.showWarningMessage(
+        `Another window is cloning ${repo.owner}/${repo.repo}. Reload this window when it is done.`,
+      );
+      return false;
+    }
   } catch (error: any) {
     await showGitHubError(
       session.config,
@@ -98,6 +114,6 @@ export async function clonePrivate(
     return false;
   }
   await setRepositoryIdentity(workspacePath, gitHubIdentity(session.user!));
-  warmupGradleDaemon(workspacePath, prewarm);
+  void warmupGradleDaemon(workspacePath, prewarm, prewarmAutoConfirm);
   return true;
 }
