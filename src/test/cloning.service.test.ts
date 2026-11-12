@@ -1,3 +1,4 @@
+import "./vscode-stub";
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -5,7 +6,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
-import { cloneByGivenURL } from "./cloning.service";
+import { cloneByGivenURL } from "../participation/cloning.service";
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, {

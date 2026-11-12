@@ -27,6 +27,7 @@ export type TheiaEnv = {
   GIT_USER: string | undefined;
   GIT_MAIL: string | undefined;
   GRADLE_PREWARM: GradlePrewarmLevel;
+  GRADLE_PREWARM_AUTO_CONFIRM: boolean;
 };
 
 export const ENV_KEYS = [
@@ -38,6 +39,7 @@ export const ENV_KEYS = [
   "GIT_USER",
   "GIT_MAIL",
   "GRADLE_PREWARM",
+  "GRADLE_PREWARM_AUTO_CONFIRM",
 ] as const satisfies Array<string>;
 
 /**
@@ -108,6 +110,15 @@ export function parseGitRef(value: string | undefined): string | undefined {
 }
 
 /**
+ * Prewarming runs the Gradle wrapper of the cloned repository. Exercise templates come from a
+ * trusted Artemis by default, so it runs without asking. Set GRADLE_PREWARM_AUTO_CONFIRM to false
+ * where they are not trusted: the student then has to confirm first.
+ */
+export function parseGradlePrewarmAutoConfirm(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() !== "false";
+}
+
+/**
  * Whether the data bridge has delivered the session's environment. The operator injects all of a session's variables
  * in one request, so the first of them to show up means all have.
  *
@@ -137,6 +148,7 @@ export function parseTheiaEnv(
       env["GRADLE_PREWARM"],
       source === "artemis" ? DEFAULT_GRADLE_PREWARM : DEFAULT_GRADLE_PREWARM_UNTRUSTED,
     ),
+    GRADLE_PREWARM_AUTO_CONFIRM: parseGradlePrewarmAutoConfirm(env["GRADLE_PREWARM_AUTO_CONFIRM"]),
   };
 }
 
