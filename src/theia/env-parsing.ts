@@ -28,6 +28,10 @@ export type TheiaEnv = {
   GIT_MAIL: string | undefined;
   GRADLE_PREWARM: GradlePrewarmLevel;
   GRADLE_PREWARM_AUTO_CONFIRM: boolean;
+  /** Per-installation overrides of the scorpio.github.* settings, as raw strings (see src/github/config.ts). */
+  GITHUB_CLIENT_ID: string | undefined;
+  GITHUB_PRIVATE_REPOS: string | undefined;
+  GITHUB_HOST: string | undefined;
 };
 
 export const ENV_KEYS = [
@@ -40,7 +44,20 @@ export const ENV_KEYS = [
   "GIT_MAIL",
   "GRADLE_PREWARM",
   "GRADLE_PREWARM_AUTO_CONFIRM",
+  "SCORPIO_GITHUB_CLIENT_ID",
+  "SCORPIO_GITHUB_PRIVATE_REPOS",
+  "SCORPIO_GITHUB_HOST",
 ] as const satisfies Array<string>;
+
+/** The host name of a GitHub host setting, which may be a bare host ("github.com") or an origin URL. */
+export function gitHubHostname(value: string | undefined): string {
+  const host = value?.trim() || "github.com";
+  try {
+    return new URL(host.includes("://") ? host : `https://${host}`).hostname.toLowerCase();
+  } catch {
+    return host.toLowerCase();
+  }
+}
 
 /**
  * Default prewarm level for Artemis exercises when the environment variable is unset. Warming the daemon is cheap and
@@ -135,7 +152,7 @@ export function parseTheiaEnv(
   fromDataBridge: boolean = false,
 ): TheiaEnv {
   const gitUriString = env["GIT_URI"];
-  const source = resolveGitSource(env);
+  const source = resolveGitSource(env, gitHubHostname(env["SCORPIO_GITHUB_HOST"]));
   return {
     THEIA_FLAG: env["THEIA"] !== undefined || (fromDataBridge && isDataBridgeEnvComplete(env)),
     ARTEMIS_URL: env["ARTEMIS_URL"],
@@ -149,6 +166,9 @@ export function parseTheiaEnv(
       source === "artemis" ? DEFAULT_GRADLE_PREWARM : DEFAULT_GRADLE_PREWARM_UNTRUSTED,
     ),
     GRADLE_PREWARM_AUTO_CONFIRM: parseGradlePrewarmAutoConfirm(env["GRADLE_PREWARM_AUTO_CONFIRM"]),
+    GITHUB_CLIENT_ID: env["SCORPIO_GITHUB_CLIENT_ID"],
+    GITHUB_PRIVATE_REPOS: env["SCORPIO_GITHUB_PRIVATE_REPOS"],
+    GITHUB_HOST: env["SCORPIO_GITHUB_HOST"],
   };
 }
 

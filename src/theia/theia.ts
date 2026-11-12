@@ -7,6 +7,7 @@ import { cloneByGivenURL, withCloneLock } from "../participation/cloning.service
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
 import { redactUrlCredentials } from "./env-parsing";
+import type { GitHubIntegration } from "../github";
 
 export let theiaEnv: TheiaEnv = {
   THEIA_FLAG: false,
@@ -18,6 +19,9 @@ export let theiaEnv: TheiaEnv = {
   GIT_MAIL: undefined,
   GRADLE_PREWARM: DEFAULT_GRADLE_PREWARM,
   GRADLE_PREWARM_AUTO_CONFIRM: true,
+  GITHUB_CLIENT_ID: undefined,
+  GITHUB_PRIVATE_REPOS: undefined,
+  GITHUB_HOST: undefined,
 };
 
 export async function loadTheiaEnv(): Promise<void> {
@@ -49,7 +53,7 @@ function normalizeRepoUrl(raw: string): string {
   }
 }
 
-async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promise<boolean> {
+export async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promise<boolean> {
   const gitPath = path.join(workspacePath, ".git");
   try {
     await fs.stat(gitPath);
@@ -70,7 +74,7 @@ async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promi
   }
 }
 
-export async function initTheia() {
+export async function initTheia(github?: GitHubIntegration) {
   if (theiaEnv.GIT_URI) {
     vscode.commands.executeCommand("setContext", "scorpio.theia.givenExercise", true);
   }
@@ -104,12 +108,19 @@ export async function initTheia() {
       // Still write the git identity below, or a clone retried by hand commits as the wrong user.
       // Without the notification the student just sees an empty workspace. Artemis URLs carry a
       // token, so neither the URL nor git's message is shown unredacted.
+      cloned = false;
       const message = redactUrlCredentials(`${e?.message ?? e}`);
       console.error(message);
-      vscode.window.showErrorMessage(
-        `Could not clone ${redactUrlCredentials(repoUri.toString())}: ${message}`,
-      );
-      cloned = false;
+      // A private GitHub repository fails here too; the GitHub module then offers to sign in.
+      const handled =
+        theiaEnv.GIT_SOURCE === "github" &&
+        github !== undefined &&
+        (await github.handleCloneFailure(repoUri, workspacePath));
+      if (!handled) {
+        vscode.window.showErrorMessage(
+          `Could not clone ${redactUrlCredentials(repoUri.toString())}: ${message}`,
+        );
+      }
     }
 
     // Pre-warm Gradle in the background every session so the student's build is faster,

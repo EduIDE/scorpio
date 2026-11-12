@@ -1,10 +1,12 @@
 import * as vscode from "vscode";
-import { initTheia, loadTheiaEnv } from "./theia/theia";
+import { initTheia, loadTheiaEnv, theiaEnv } from "./theia/theia";
+import { activateGitHub } from "./github";
 import { initSettings } from "./shared/settings";
 
 export async function activate(context: vscode.ExtensionContext) {
   await loadTheiaEnv();
-  await initTheia();
+  const github = activateGitHub(context, theiaEnv);
+  await initTheia(github);
   context.subscriptions.push(initSettings());
 
   context.subscriptions.push(
