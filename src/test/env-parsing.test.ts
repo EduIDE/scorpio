@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
-import { isDataBridgeEnvComplete, parseTheiaEnv } from "./env-parsing";
+import { isDataBridgeEnvComplete, parseTheiaEnv } from "../theia/env-parsing";
 
 const GITHUB_REPO = "https://github.com/octocat/Hello-World.git";
 
@@ -66,6 +66,7 @@ test("an Artemis launch keeps its values", () => {
       GIT_USER: "student",
       GIT_MAIL: "student@example.org",
       GRADLE_PREWARM: "deps",
+      GRADLE_PREWARM_AUTO_CONFIRM: true,
     },
   );
 });
@@ -74,4 +75,12 @@ test("GRADLE_PREWARM falls back to the default for missing or unknown values", (
   assert.equal(parseTheiaEnv({}).GRADLE_PREWARM, "daemon");
   assert.equal(parseTheiaEnv({ GRADLE_PREWARM: " FULL " }).GRADLE_PREWARM, "full");
   assert.equal(parseTheiaEnv({ GRADLE_PREWARM: "turbo" }).GRADLE_PREWARM, "daemon");
+});
+
+test("GRADLE_PREWARM_AUTO_CONFIRM defaults to true and only an explicit false turns it off", () => {
+  assert.equal(parseTheiaEnv({}).GRADLE_PREWARM_AUTO_CONFIRM, true);
+  assert.equal(
+    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: " False " }).GRADLE_PREWARM_AUTO_CONFIRM,
+    false,
+  );
 });
