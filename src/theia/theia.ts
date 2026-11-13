@@ -126,7 +126,9 @@ export async function initTheia() {
         templatesDir,
       );
       if (result === "not-found") {
-        const message = `Template ${theiaEnv.TEMPLATE} not found, starting with an empty workspace`;
+        // The id comes from the environment, so keep markdown link syntax and long text out of the notification.
+        const shownId = theiaEnv.TEMPLATE.replace(/[\[\]()`\r\n]/g, "").slice(0, 64);
+        const message = `Template \`${shownId}\` not found, starting with an empty workspace`;
         console.warn(message);
         vscode.window.showWarningMessage(message);
       }

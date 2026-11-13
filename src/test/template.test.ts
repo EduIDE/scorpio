@@ -1,5 +1,16 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
@@ -19,6 +30,10 @@ function newTemplates() {
   write(path.join(dir, "gradle", "src", "Main.java"), "class Main {}");
   write(path.join(dir, "gradle", ".vscode", "settings.json"), "template");
   return dir;
+}
+function newTemplatesFixed(templates: string) {
+  chmodSync(path.join(templates, "gradle", "zz-unreadable.txt"), 0o644);
+  return templates;
 }
 const lock = () => path.join(newDir(), "lock");
 
@@ -99,3 +114,53 @@ test("a second window skips the copy while one is running", async () => {
 
   assert.equal(await applyTemplate("gradle", workspace, templates, lockPath), "busy");
 });
+
+test("a folder without template.json is not a template", async () => {
+  const templates = newTemplates();
+  write(path.join(templates, "plain", "file.txt"));
+  const workspace = newDir();
+
+  assert.equal(await applyTemplate("plain", workspace, templates, lock()), "not-found");
+});
+
+test("a workspace holding only .gitignore counts as non-empty", async () => {
+  const workspace = newDir();
+  write(path.join(workspace, ".gitignore"));
+
+  assert.equal(
+    await applyTemplate("gradle", workspace, newTemplates(), lock()),
+    "workspace-not-empty",
+  );
+});
+
+test("symlinks are copied as symlinks", async () => {
+  const templates = newTemplates();
+  symlinkSync("build.gradle", path.join(templates, "gradle", "link"));
+  const workspace = newDir();
+
+  await applyTemplate("gradle", workspace, templates, lock());
+
+  assert.equal(lstatSync(path.join(workspace, "link")).isSymbolicLink(), true);
+});
+
+test(
+  "a failed copy leaves the workspace as it was",
+  { skip: process.getuid?.() === 0 },
+  async () => {
+    const templates = newTemplates();
+    const unreadable = path.join(templates, "gradle", "zz-unreadable.txt");
+    write(unreadable);
+    chmodSync(unreadable, 0o000);
+    const workspace = newDir();
+    write(path.join(workspace, ".vscode", "settings.json"), "mine");
+
+    await assert.rejects(applyTemplate("gradle", workspace, templates, lock()));
+
+    assert.deepEqual(readdirSync(workspace).sort(), [".vscode"]);
+    assert.deepEqual(readdirSync(path.join(workspace, ".vscode")), ["settings.json"]);
+    assert.equal(
+      await applyTemplate("gradle", workspace, newTemplatesFixed(templates), lock()),
+      "applied",
+    );
+  },
+);

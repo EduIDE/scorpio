@@ -23,7 +23,12 @@ async function resolveTemplateDir(id: string, templatesDir: string): Promise<str
     return undefined;
   }
   const stats = await fs.lstat(dir).catch(() => undefined);
-  return stats?.isDirectory() ? dir : undefined;
+  if (!stats?.isDirectory()) {
+    return undefined;
+  }
+  // No manifest, no template.
+  const manifest = await fs.lstat(path.join(dir, TEMPLATE_MANIFEST)).catch(() => undefined);
+  return manifest?.isFile() ? dir : undefined;
 }
 
 /**
@@ -66,12 +71,25 @@ export async function applyTemplate(
     if (!(await isWorkspaceEmpty(workspacePath))) {
       return;
     }
-    // force: false keeps the workspace's own .vscode/settings.json over the template's.
-    await fs.cp(templateDir, workspacePath, {
-      recursive: true,
-      force: false,
-      filter: (source) => source !== path.join(templateDir, TEMPLATE_MANIFEST),
-    });
+    // A failed copy must not leave a half-filled workspace, which would count as non-empty for good.
+    const before = new Set(await fs.readdir(workspacePath, { recursive: true }));
+    try {
+      // force: false keeps the workspace's own .vscode/settings.json over the template's.
+      await fs.cp(templateDir, workspacePath, {
+        recursive: true,
+        force: false,
+        verbatimSymlinks: true,
+        filter: (source) => source !== path.join(templateDir, TEMPLATE_MANIFEST),
+      });
+    } catch (e) {
+      const created = (await fs.readdir(workspacePath, { recursive: true })).filter(
+        (entry) => !before.has(entry),
+      );
+      for (const entry of created) {
+        await fs.rm(path.join(workspacePath, entry), { recursive: true, force: true });
+      }
+      throw e;
+    }
     await fs.chmod(path.join(workspacePath, "gradlew"), 0o755).catch(() => {});
     result = "applied";
   }, lockPath);
