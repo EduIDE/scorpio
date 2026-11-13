@@ -16,6 +16,7 @@ export type TheiaEnv = {
   THEIA_FLAG: boolean;
   ARTEMIS_URL: string | undefined;
   GIT_URI: URL | undefined;
+  TEMPLATE: string | undefined;
   GIT_USER: string | undefined;
   GIT_MAIL: string | undefined;
   GRADLE_PREWARM: GradlePrewarmLevel;
@@ -26,6 +27,7 @@ export const ENV_KEYS = [
   "THEIA",
   "ARTEMIS_URL",
   "GIT_URI",
+  "TEMPLATE",
   "GIT_USER",
   "GIT_MAIL",
   "GRADLE_PREWARM",
@@ -69,7 +71,7 @@ export function parseGradlePrewarmAutoConfirm(value: string | undefined): boolea
  * the process environment, where a warm-pool instance has no GIT_URI, so nothing was cloned.
  */
 export function isDataBridgeEnvComplete(env: Record<string, string | undefined>): boolean {
-  return Boolean(env["GIT_URI"] || env["THEIA"]);
+  return Boolean(env["GIT_URI"] || env["TEMPLATE"] || env["THEIA"]);
 }
 
 export function parseTheiaEnv(
@@ -81,6 +83,7 @@ export function parseTheiaEnv(
     THEIA_FLAG: env["THEIA"] !== undefined || (fromDataBridge && isDataBridgeEnvComplete(env)),
     ARTEMIS_URL: env["ARTEMIS_URL"],
     GIT_URI: gitUriString ? new URL(gitUriString) : undefined,
+    TEMPLATE: env["TEMPLATE"],
     GIT_USER: env["GIT_USER"],
     GIT_MAIL: env["GIT_MAIL"],
     GRADLE_PREWARM: parseGradlePrewarm(env["GRADLE_PREWARM"]),

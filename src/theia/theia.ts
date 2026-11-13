@@ -4,6 +4,7 @@ import { hostname } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
 import { cloneByGivenURL, withCloneLock } from "../participation/cloning.service";
+import { applyTemplate, DEFAULT_TEMPLATES_DIR } from "../participation/template.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
 
@@ -11,6 +12,7 @@ export let theiaEnv: TheiaEnv = {
   THEIA_FLAG: false,
   ARTEMIS_URL: undefined,
   GIT_URI: undefined,
+  TEMPLATE: undefined,
   GIT_USER: undefined,
   GIT_MAIL: undefined,
   GRADLE_PREWARM: DEFAULT_GRADLE_PREWARM,
@@ -102,6 +104,37 @@ export async function initTheia() {
     // Pre-warm Gradle in the background every session so the student's build is faster,
     // even on restarts where the repo is already present but the daemon is cold.
     // Depth is controlled by GRADLE_PREWARM; warmupGradleDaemon skips non-Gradle repos.
+    void warmupGradleDaemon(
+      workspaceFolderUri.fsPath,
+      theiaEnv.GRADLE_PREWARM,
+      theiaEnv.GRADLE_PREWARM_AUTO_CONFIRM,
+    );
+  }
+
+  // GIT_URI wins: a template is never applied over a clone.
+  if (!theiaEnv.GIT_URI && theiaEnv.TEMPLATE) {
+    const workspaceFolderUri = getWorkspaceFolder();
+    if (!workspaceFolderUri) {
+      vscode.window.showErrorMessage("No workspace folder available to copy the template into");
+      return;
+    }
+    const templatesDir = process.env["SCORPIO_TEMPLATES_DIR"] || DEFAULT_TEMPLATES_DIR;
+    try {
+      const result = await applyTemplate(
+        theiaEnv.TEMPLATE,
+        workspaceFolderUri.fsPath,
+        templatesDir,
+      );
+      if (result === "not-found") {
+        const message = `Template ${theiaEnv.TEMPLATE} not found, starting with an empty workspace`;
+        console.warn(message);
+        vscode.window.showWarningMessage(message);
+      }
+    } catch (e: any) {
+      console.error(e.message);
+      vscode.window.showErrorMessage("Could not copy the template into the workspace");
+    }
+
     void warmupGradleDaemon(
       workspaceFolderUri.fsPath,
       theiaEnv.GRADLE_PREWARM,

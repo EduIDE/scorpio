@@ -1,8 +1,8 @@
 {
   "name": "artemis-scorpio",
-  "displayName": "Artemis - Scorpio",
+  "displayName": "Scorpio - EduIDE workspace bootstrap",
   "version": "0.0.0",
-  "description": "",
+  "description": "Prepares an EduIDE workspace at session start: clones GIT_URI or copies a TEMPLATE into the empty workspace, sets the git identity and pre-warms Gradle.",
   "license": "MIT",
   "private": true,
   "categories": [
@@ -50,15 +50,14 @@
   },
   "contributes": {
     "configuration": {
-      "title": "Scorpio - Artemis",
+      "title": "Scorpio",
       "properties": {
         "scorpio.artemis.apiBaseUrl": {
           "order": 1,
-          "description": "The base URL of the Artemis Server",
+          "description": "Optional: the base URL of an Artemis server. Only used for Artemis sessions, which set it from ARTEMIS_URL.",
           "type": "string",
           "format": "uri",
-          "editPresentation": "singlelineText",
-          "default": "https://artemis.cit.tum.de"
+          "editPresentation": "singlelineText"
         },
         "scorpio.defaults.repoPath": {
           "order": 3,

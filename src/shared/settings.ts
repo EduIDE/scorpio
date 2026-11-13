@@ -24,10 +24,6 @@ function getSettings(): Settings {
     base_url = theiaEnv.ARTEMIS_URL;
   }
 
-  if (!base_url) {
-    vscode.window.showErrorMessage("Artemis Base URL not set. Please set it in the settings.");
-  }
-
   const default_repo_path = vscode.workspace
     .getConfiguration("scorpio")
     .get<string>("defaults.repoPath");
@@ -47,11 +43,9 @@ function handleSettingsChange(e: vscode.ConfigurationChangeEvent) {
       return;
     }
 
-    const base_url = vscode.workspace.getConfiguration("scorpio").get<string>("artemis.apiBaseUrl");
-    if (!base_url) {
-      vscode.window.showErrorMessage("Artemis Base URL not set. Please set it in the settings.");
-    }
-    settings.base_url = base_url;
+    settings.base_url = vscode.workspace
+      .getConfiguration("scorpio")
+      .get<string>("artemis.apiBaseUrl");
   }
 
   if (e.affectsConfiguration("scorpio.defaults.repoPath")) {

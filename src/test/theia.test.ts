@@ -38,9 +38,11 @@ beforeEach(() => {
   workspace = newDir();
   vscodeStub.workspace.workspaceFolders = [{ uri: { fsPath: workspace } }];
   vscodeStub.window.errors.length = 0;
+  vscodeStub.window.warnings.length = 0;
   Object.assign(theiaEnv, {
     THEIA_FLAG: true,
     GIT_URI: undefined,
+    TEMPLATE: undefined,
     GIT_USER: undefined,
     GIT_MAIL: undefined,
     GRADLE_PREWARM: "off",
@@ -115,4 +117,41 @@ test("a failed clone is reported and the identity is still written", async () =>
 
   assert.deepEqual(vscodeStub.window.errors, ["Could not clone the exercise repository"]);
   assert.equal(globalConfig("user.name"), "Ada Lovelace");
+});
+
+test("GIT_URI wins over TEMPLATE: the clone is not overlaid with the template", async () => {
+  const templates = newDir();
+  mkdirSync(path.join(templates, "gradle"));
+  writeFileSync(path.join(templates, "gradle", "from-template.txt"), "x");
+  process.env.SCORPIO_TEMPLATES_DIR = templates;
+  Object.assign(theiaEnv, { GIT_URI: newExerciseRepo(), TEMPLATE: "gradle" });
+
+  await initTheia();
+
+  assert.equal(existsSync(path.join(workspace, "README.md")), true);
+  assert.equal(existsSync(path.join(workspace, "from-template.txt")), false);
+});
+
+test("a TEMPLATE without GIT_URI is copied into the workspace", async () => {
+  const templates = newDir();
+  mkdirSync(path.join(templates, "gradle"));
+  writeFileSync(path.join(templates, "gradle", "from-template.txt"), "x");
+  process.env.SCORPIO_TEMPLATES_DIR = templates;
+  theiaEnv.TEMPLATE = "gradle";
+
+  await initTheia();
+
+  assert.equal(existsSync(path.join(workspace, "from-template.txt")), true);
+});
+
+test("an unknown TEMPLATE shows a notification and the session still starts", async () => {
+  process.env.SCORPIO_TEMPLATES_DIR = newDir();
+  theiaEnv.TEMPLATE = "nope";
+
+  await initTheia();
+
+  assert.deepEqual(vscodeStub.window.warnings, [
+    "Template nope not found, starting with an empty workspace",
+  ]);
+  assert.equal(globalConfig("user.name"), hostname());
 });

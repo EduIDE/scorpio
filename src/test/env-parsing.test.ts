@@ -10,6 +10,11 @@ test("the data bridge is complete with GIT_URI alone, without ARTEMIS_URL", () =
   assert.equal(isDataBridgeEnvComplete({ THEIA: "true", GIT_URI: GITHUB_REPO }), true);
 });
 
+test("the data bridge is complete with TEMPLATE alone", () => {
+  assert.equal(isDataBridgeEnvComplete({ TEMPLATE: "gradle" }), true);
+  assert.equal(parseTheiaEnv({ TEMPLATE: "gradle" }).TEMPLATE, "gradle");
+});
+
 test("the data bridge is complete for an Artemis launch", () => {
   assert.equal(
     isDataBridgeEnvComplete({
@@ -63,6 +68,7 @@ test("an Artemis launch keeps its values", () => {
       THEIA_FLAG: true,
       ARTEMIS_URL: "https://artemis.example.org",
       GIT_URI: "https://artemis.example.org/git/EX/ex-student.git",
+      TEMPLATE: undefined,
       GIT_USER: "student",
       GIT_MAIL: "student@example.org",
       GRADLE_PREWARM: "deps",

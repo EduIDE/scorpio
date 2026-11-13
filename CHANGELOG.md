@@ -6,6 +6,8 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+- Add `TEMPLATE`: without `GIT_URI`, copy `<templates dir>/<id>` into an empty workspace (`SCORPIO_TEMPLATES_DIR`, default `/home/theia/templates`); `GIT_URI` always wins
+- Scorpio is a workspace bootstrap for EduIDE, independent of Artemis: new display name and description, `scorpio.artemis.apiBaseUrl` is optional and has no default
 - Warm-pool sessions opened from a GitHub link now clone `GIT_URI` without waiting for `ARTEMIS_URL`
 - simple-git 4 and minimatch 11, fixing the remaining Dependabot alerts
 - Fix 51 Dependabot security alerts by updating vulnerable transitive dependencies
