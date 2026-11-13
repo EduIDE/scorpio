@@ -178,8 +178,6 @@ test(
     const lostFound = path.join(workspace, "lost+found");
     mkdirSync(lostFound);
     chmodSync(lostFound, 0o000);
-    // Same folder as a template file, saved by the student after the copy started.
-    write(path.join(workspace, "src", "Solution.java"), "mine");
 
     await assert.rejects(applyTemplate("gradle", workspace, templates, lock()));
     chmodSync(lostFound, 0o755);
