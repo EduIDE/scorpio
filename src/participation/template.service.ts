@@ -52,6 +52,32 @@ async function isWorkspaceEmpty(workspacePath: string): Promise<boolean> {
 }
 
 /**
+ * Every image ships its own .vscode/settings.json, so the template's settings would be dropped.
+ * Merges them: the workspace's keys are the base and the template's keys win. Plain JSON only;
+ * if either file does not parse, the workspace file stays as it is.
+ */
+async function mergeSettings(
+  settingsPath: string,
+  workspaceText: string,
+  templateSettingsPath: string,
+) {
+  const templateText = await fs.readFile(templateSettingsPath, "utf8").catch(() => undefined);
+  if (templateText === undefined) {
+    return;
+  }
+  try {
+    const base = JSON.parse(workspaceText);
+    const overrides = JSON.parse(templateText);
+    if ([base, overrides].some((v) => typeof v !== "object" || v === null || Array.isArray(v))) {
+      throw new Error("not a JSON object");
+    }
+    await fs.writeFile(settingsPath, `${JSON.stringify({ ...base, ...overrides }, null, 2)}\n`);
+  } catch (e: any) {
+    console.warn(`Keeping the workspace .vscode/settings.json, could not merge: ${e.message}`);
+  }
+}
+
+/**
  * Copies the template into an empty workspace. A restart on a persistent workspace finds files
  * and leaves them alone. Runs under the clone lock so two windows do not copy at once.
  */
@@ -82,15 +108,27 @@ export async function applyTemplate(
         missingBefore.push(entry);
       }
     }
+    const settingsPath = path.join(workspacePath, ".vscode", "settings.json");
+    const originalSettings = await fs.readFile(settingsPath, "utf8").catch(() => undefined);
     try {
-      // force: false keeps the workspace's own .vscode/settings.json over the template's.
+      // force: false leaves the workspace's .vscode/settings.json alone, it is merged below.
       await fs.cp(templateDir, workspacePath, {
         recursive: true,
         force: false,
         verbatimSymlinks: true,
         filter: (source) => source !== path.join(templateDir, TEMPLATE_MANIFEST),
       });
+      if (originalSettings !== undefined) {
+        await mergeSettings(
+          settingsPath,
+          originalSettings,
+          path.join(templateDir, ".vscode", "settings.json"),
+        );
+      }
     } catch (e) {
+      if (originalSettings !== undefined) {
+        await fs.writeFile(settingsPath, originalSettings);
+      }
       // Deepest first, so a folder is only removed once its template files are gone and never
       // while it holds something else, such as a file the student saved meanwhile.
       for (const entry of missingBefore.sort((x, y) => y.length - x.length)) {

@@ -68,12 +68,12 @@ test("what Theia puts into the workspace itself does not count as content", asyn
   const workspace = newDir();
   write(path.join(workspace, ".theia", "settings.json"));
   write(path.join(workspace, "persisted", "x"));
-  write(path.join(workspace, ".vscode", "settings.json"), "mine");
+  write(path.join(workspace, ".vscode", "settings.json"), "{}");
 
   const result = await applyTemplate("gradle", workspace, newTemplates(), lock());
 
   assert.equal(result, "applied");
-  assert.equal(readFileSync(path.join(workspace, ".vscode", "settings.json"), "utf8"), "mine");
+  assert.equal(existsSync(path.join(workspace, ".vscode", "settings.json")), true);
   assert.equal(existsSync(path.join(workspace, "build.gradle")), true);
 });
 
@@ -184,5 +184,51 @@ test(
 
     assert.equal(existsSync(path.join(workspace, "src", "Main.java")), false);
     assert.equal(existsSync(path.join(workspace, "build.gradle")), false);
+  },
+);
+
+const settingsOf = (workspace: string) => path.join(workspace, ".vscode", "settings.json");
+
+test("template settings are merged over the workspace settings", async () => {
+  const templates = newTemplates();
+  write(path.join(templates, "gradle", ".vscode", "settings.json"), '{"a": "template", "t": 1}');
+  const workspace = newDir();
+  write(settingsOf(workspace), '{"a": "image", "b": 2}');
+
+  assert.equal(await applyTemplate("gradle", workspace, templates, lock()), "applied");
+
+  assert.deepEqual(JSON.parse(readFileSync(settingsOf(workspace), "utf8")), {
+    a: "template",
+    b: 2,
+    t: 1,
+  });
+});
+
+test("the workspace settings stay when they do not parse", async () => {
+  const templates = newTemplates();
+  write(path.join(templates, "gradle", ".vscode", "settings.json"), '{"a": 1}');
+  const workspace = newDir();
+  write(settingsOf(workspace), "// comment\n{}");
+
+  await applyTemplate("gradle", workspace, templates, lock());
+
+  assert.equal(readFileSync(settingsOf(workspace), "utf8"), "// comment\n{}");
+});
+
+test(
+  "a failed copy restores the original settings",
+  { skip: process.getuid?.() === 0 },
+  async () => {
+    const templates = newTemplates();
+    write(path.join(templates, "gradle", ".vscode", "settings.json"), '{"a": 1}');
+    const bad = path.join(templates, "gradle", "zz.txt");
+    write(bad);
+    chmodSync(bad, 0o000);
+    const workspace = newDir();
+    write(settingsOf(workspace), '{"b": 2}');
+
+    await assert.rejects(applyTemplate("gradle", workspace, templates, lock()));
+
+    assert.equal(readFileSync(settingsOf(workspace), "utf8"), '{"b": 2}');
   },
 );
