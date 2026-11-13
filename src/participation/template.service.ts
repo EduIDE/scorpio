@@ -72,7 +72,16 @@ export async function applyTemplate(
       return;
     }
     // A failed copy must not leave a half-filled workspace, which would count as non-empty for good.
-    const before = new Set(await fs.readdir(workspacePath, { recursive: true }));
+    // Only paths the template would create are tracked, so rollback never touches other files.
+    const missingBefore: string[] = [];
+    for (const entry of await fs.readdir(templateDir, { recursive: true })) {
+      if (entry === TEMPLATE_MANIFEST) {
+        continue;
+      }
+      if (!(await fs.lstat(path.join(workspacePath, entry)).catch(() => undefined))) {
+        missingBefore.push(entry);
+      }
+    }
     try {
       // force: false keeps the workspace's own .vscode/settings.json over the template's.
       await fs.cp(templateDir, workspacePath, {
@@ -82,11 +91,16 @@ export async function applyTemplate(
         filter: (source) => source !== path.join(templateDir, TEMPLATE_MANIFEST),
       });
     } catch (e) {
-      const created = (await fs.readdir(workspacePath, { recursive: true })).filter(
-        (entry) => !before.has(entry),
-      );
-      for (const entry of created) {
-        await fs.rm(path.join(workspacePath, entry), { recursive: true, force: true });
+      // Deepest first, so a folder is only removed once its template files are gone and never
+      // while it holds something else, such as a file the student saved meanwhile.
+      for (const entry of missingBefore.sort((x, y) => y.length - x.length)) {
+        const target = path.join(workspacePath, entry);
+        const stats = await fs.lstat(target).catch(() => undefined);
+        if (stats?.isDirectory()) {
+          await fs.rmdir(target).catch(() => {});
+        } else if (stats) {
+          await fs.rm(target, { force: true });
+        }
       }
       throw e;
     }

@@ -164,3 +164,27 @@ test(
     );
   },
 );
+
+test(
+  "a failed copy rolls back even when a preserved folder is unreadable",
+  { skip: process.getuid?.() === 0 },
+  async () => {
+    const templates = newTemplates();
+    const unreadable = path.join(templates, "gradle", "zz-unreadable.txt");
+    write(unreadable);
+    chmodSync(unreadable, 0o000);
+    write(path.join(templates, "gradle", "src", "Other.java"));
+    const workspace = newDir();
+    const lostFound = path.join(workspace, "lost+found");
+    mkdirSync(lostFound);
+    chmodSync(lostFound, 0o000);
+    // Same folder as a template file, saved by the student after the copy started.
+    write(path.join(workspace, "src", "Solution.java"), "mine");
+
+    await assert.rejects(applyTemplate("gradle", workspace, templates, lock()));
+    chmodSync(lostFound, 0o755);
+
+    assert.equal(existsSync(path.join(workspace, "src", "Main.java")), false);
+    assert.equal(existsSync(path.join(workspace, "build.gradle")), false);
+  },
+);
