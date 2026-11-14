@@ -57,7 +57,7 @@ async function isWorkspaceEmpty(workspacePath: string): Promise<boolean> {
  * Merges them: the workspace's keys are the base and the template's keys win. Both files are parsed as JSONC (comments and
  * trailing commas, as VS Code allows), so comments in the merged file are lost; if either file does not parse, the workspace file stays as it is.
  */
-function parseSettings(text: string): unknown {
+function parseSettings(text: string): any {
   const errors: ParseError[] = [];
   const value = parse(text, errors, { allowTrailingComma: true });
   if (errors.length > 0) {
