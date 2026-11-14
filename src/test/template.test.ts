@@ -204,15 +204,33 @@ test("template settings are merged over the workspace settings", async () => {
   });
 });
 
+test("settings with comments and trailing commas are merged", async () => {
+  const templates = newTemplates();
+  write(
+    path.join(templates, "gradle", ".vscode", "settings.json"),
+    '{\n  // template\n  "livePreview.portNumber": 3000,\n}',
+  );
+  const workspace = newDir();
+  write(settingsOf(workspace), '{\n  /* image */\n  "a": [1, 2,],\n  "b": 2, // eol\n}');
+
+  await applyTemplate("gradle", workspace, templates, lock());
+
+  assert.deepEqual(JSON.parse(readFileSync(settingsOf(workspace), "utf8")), {
+    a: [1, 2],
+    b: 2,
+    "livePreview.portNumber": 3000,
+  });
+});
+
 test("the workspace settings stay when they do not parse", async () => {
   const templates = newTemplates();
   write(path.join(templates, "gradle", ".vscode", "settings.json"), '{"a": 1}');
   const workspace = newDir();
-  write(settingsOf(workspace), "// comment\n{}");
+  write(settingsOf(workspace), "{ broken");
 
   await applyTemplate("gradle", workspace, templates, lock());
 
-  assert.equal(readFileSync(settingsOf(workspace), "utf8"), "// comment\n{}");
+  assert.equal(readFileSync(settingsOf(workspace), "utf8"), "{ broken");
 });
 
 test(

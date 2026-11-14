@@ -1,4 +1,5 @@
 import * as fs from "fs/promises";
+import { parse, type ParseError } from "jsonc-parser";
 import * as path from "path";
 import { THEIA_PRESERVED_PATHS, withCloneLock } from "./cloning.service";
 
@@ -53,9 +54,18 @@ async function isWorkspaceEmpty(workspacePath: string): Promise<boolean> {
 
 /**
  * Every image ships its own .vscode/settings.json, so the template's settings would be dropped.
- * Merges them: the workspace's keys are the base and the template's keys win. Plain JSON only;
- * if either file does not parse, the workspace file stays as it is.
+ * Merges them: the workspace's keys are the base and the template's keys win. Both files are parsed as JSONC (comments and
+ * trailing commas, as VS Code allows), so comments in the merged file are lost; if either file does not parse, the workspace file stays as it is.
  */
+function parseSettings(text: string): unknown {
+  const errors: ParseError[] = [];
+  const value = parse(text, errors, { allowTrailingComma: true });
+  if (errors.length > 0) {
+    throw new Error("invalid JSONC");
+  }
+  return value;
+}
+
 async function mergeSettings(
   settingsPath: string,
   workspaceText: string,
@@ -66,8 +76,8 @@ async function mergeSettings(
     return;
   }
   try {
-    const base = JSON.parse(workspaceText);
-    const overrides = JSON.parse(templateText);
+    const base = parseSettings(workspaceText);
+    const overrides = parseSettings(templateText);
     if ([base, overrides].some((v) => typeof v !== "object" || v === null || Array.isArray(v))) {
       throw new Error("not a JSON object");
     }

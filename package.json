@@ -33,6 +33,7 @@
     "fmt:check": "oxfmt --check"
   },
   "dependencies": {
+    "jsonc-parser": "^3.3.1",
     "simple-git": "^4.0.2"
   },
   "devDependencies": {
