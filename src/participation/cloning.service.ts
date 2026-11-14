@@ -16,7 +16,7 @@ type PreservedWorkspaceEntry = {
   isDirectory: boolean;
 };
 
-const THEIA_PRESERVED_PATHS = [".vscode/settings.json", ".theia", "persisted", "lost+found"];
+export const THEIA_PRESERVED_PATHS = [".vscode/settings.json", ".theia", "persisted", "lost+found"];
 
 const CLONE_LOCK_PATH = path.join(tmpdir(), "scorpio-workspace-clone.lock");
 // shortcut: assumes a clone finishes within this time, raise it if a window can replace a slow clone.

@@ -36,3 +36,7 @@ jobs:
 
       - name: Build Project
         run: npm run build
+
+      # The unit tests run on tsc output, so only this catches modules webpack bundles badly.
+      - name: Check the bundle loads
+        run: npm run test:bundle

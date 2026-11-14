@@ -7,6 +7,10 @@ export const vscodeStub = {
   workspace: { workspaceFolders: undefined as { uri: { fsPath: string } }[] | undefined },
   window: {
     errors: [] as string[],
+    warnings: [] as string[],
+    showWarningMessage(message: string) {
+      this.warnings.push(message);
+    },
     showErrorMessage(message: string) {
       this.errors.push(message);
     },
