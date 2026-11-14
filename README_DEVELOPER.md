@@ -34,9 +34,12 @@ npm run package        # vsce package
 
 ## Release
 
-1. Go to GitHub Releases in the scorpio repository
-2. Click "Draft a new release"
-3. Choose a tag with the new version number (e.g. `v1.5.0`)
-4. Generate release notes automatically
-5. An admin reviews and approves the release
-6. GitHub builds, uploads the artifact, and publishes to the marketplace
+Releases are manual. Ask Claude to "release scorpio" (skill `.claude/skills/release`) or do it by hand:
+
+1. Open a release pull request that moves the `## [Unreleased]` entries of `CHANGELOG.md` under `## [X.Y.Z] - YYYY-MM-DD`. The CHANGELOG section becomes the GitHub release notes.
+2. After it is merged, run `gh workflow run release.yml -R EduIDE/scorpio --ref main -f version=X.Y.Z`.
+3. Approve the run in environment `prod` (required reviewers). The workflow drafts the GitHub Release, packages the vsix (version stamped from the input), attaches `artemis-scorpio-X.Y.Z.vsix`, publishes to Open VSX through trusted publishing, verifies both and publishes the release, which creates tag `vX.Y.Z`.
+
+A release candidate (`-rc.N`, for example `2.2.0-rc.1`) can be dispatched from any branch. It creates a GitHub prerelease with the vsix and never publishes to Open VSX.
+
+After a release, bump `theiaPlugins.scorpio` in EduIDE (`images/base-ide/package.json.patch`).

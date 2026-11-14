@@ -38,7 +38,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Change version
-        run: npm version ${{ inputs.version }} --no-git-tag-version
+        run: npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Install Dependencies
         run: npm run install:all
