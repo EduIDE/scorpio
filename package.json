@@ -27,6 +27,7 @@
     "watch:extension": "webpack --watch",
     "lint": "eslint src",
     "test": "tsc --outDir out && node --test out/src/test/*.test.js",
+    "test:bundle": "node -r ./out/src/test/vscode-stub.js -e \"require('./dist/extension.js')\"",
     "package": "vsce package",
     "vscode:prepublish": "npm run build",
     "fmt": "oxfmt",
