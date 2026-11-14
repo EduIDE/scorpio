@@ -1,9 +1,29 @@
-# refer to the github docs for more information https://github.com/github/vscode-github-actions/blob/main/.github/workflows/publish.yml
-# Releases the plugin to GitHub and VS Code Marketplace
+# Manual release. The only way scorpio releases.
+#
+#   gh workflow run release.yml -R EduIDE/scorpio --ref main -f version=2.2.0
+#   gh workflow run release.yml -R EduIDE/scorpio --ref my-branch -f version=2.2.0-rc.1
+#
+# A stable version publishes the vsix to the GitHub Release and to Open VSX.
+# A release candidate (-rc.N) only attaches the vsix to a prerelease on GitHub.
+#
+# A release created with GITHUB_TOKEN triggers no other workflow, so the
+# packaging is called from here instead of being triggered by the release.
 name: Release
+
 on:
-  release:
-    types: [released]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the leading v, e.g. 2.2.0, or 2.2.0-rc.1 for a prerelease"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   package:
@@ -13,66 +33,87 @@ jobs:
     uses: ./.github/workflows/package.yml
     secrets: inherit
     with:
-      version: ${{ github.event.release.tag_name }}
+      version: ${{ inputs.version }}
 
   release:
-    name: Release
-    runs-on: ubuntu-latest
+    name: Tag and GitHub Release
     needs: package
     permissions:
       contents: write
+    uses: EduIDE/.github/.github/workflows/release.yml@main
+    with:
+      version: ${{ inputs.version }}
+      tag_prefix: "v"
+      version_check: |
+        case "$VERSION" in *-rc.*) exit 0 ;; esac
+        got=$(jq -r .version package.json)
+        [ "$got" = "$VERSION" ] || { echo "package.json says $got, expected $VERSION. Bump it in the release pull request."; exit 1; }
+
+  assets:
+    name: Attach vsix
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: scorpio-${{ inputs.version }}.vsix
+          path: .
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ needs.release.outputs.tag }}" "./artemis-scorpio-${{ inputs.version }}.vsix" --repo "$GITHUB_REPOSITORY"
+
+  # Stays in this file and in environment `prod`: the Open VSX trusted publisher
+  # is registered for release.yml in this repository (and that environment).
+  publish:
+    name: Publish to Open VSX
+    needs: [release, assets]
+    if: needs.release.outputs.prerelease == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
       # Open VSX trusted publishing exchanges the workflow's OIDC token for a short-lived one.
       id-token: write
     environment: prod
     steps:
-      # Check out current repository
       - name: Fetch Sources
         uses: actions/checkout@v4
 
       - name: Download VSIX artifact
         uses: actions/download-artifact@v4
         with:
-          name: scorpio-${{ github.event.release.tag_name }}.vsix
+          name: scorpio-${{ inputs.version }}.vsix
           path: .
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
-          registry-url: "https://npm.pkg.github.com"
-
-      - name: Install CI
-        run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Strip v from version
-        id: strip-v
-        shell: bash
-        run: |
-          TAG=${{ github.event.release.tag_name }}
-          echo "VERSION=${TAG#v}" >> $GITHUB_OUTPUT
 
       # Trusted publisher registered on open-vsx.org for aet-tum.artemis-scorpio, so no token is stored.
       - name: Publish to VSX Registry
-        id: vsx-publish
-        run: |
-          npx ovsx@1.3.0 publish --trusted-publishing ./artemis-scorpio-${{ steps.strip-v.outputs.VERSION }}.vsix
+        run: npx ovsx@1.3.0 publish --trusted-publishing "./artemis-scorpio-${{ inputs.version }}.vsix"
 
-      # Upload artifact as a release asset
-      - name: Upload Release Asset
+  verify:
+    name: Verify
+    needs: [release, assets, publish]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.assets.result == 'success' && needs.publish.result != 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the published artifacts
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload --clobber ${{ github.event.release.tag_name }} ./artemis-scorpio-${{ steps.strip-v.outputs.VERSION }}.vsix#scorpio-${{ github.event.release.tag_name }}.vsix
-
-      # personal access token with metadata:r actions:rw contents:rw
-      - name: Trigger Theia Build
-        if: steps.vsx-publish.outcome == 'success'
-        continue-on-error: true
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ needs.release.outputs.prerelease }}
         run: |
-          curl -L \
-          -X POST \
-          -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer ${{ secrets.THEIA_BLUEPRINT_TOKEN }}" \
-          ${{ vars.THEIA_BLUEPRINT_URL}}/dispatches \
-          -d '{"event_type":"release_event","client_payload":{"version": "${{ steps.strip-v.outputs.VERSION }}"}}'
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx "artemis-scorpio-${VERSION}.vsix"
+          if [[ "$PRERELEASE" == "false" ]]; then
+            curl -fsS "https://open-vsx.org/api/aet-tum/artemis-scorpio/${VERSION}" | jq -e ".version == \"${VERSION}\""
+          fi
+          echo "## Released ${TAG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_STEP_SUMMARY"
