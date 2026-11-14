@@ -250,3 +250,20 @@ test(
     assert.equal(readFileSync(settingsOf(workspace), "utf8"), '{"b": 2}');
   },
 );
+
+test(
+  "a settings write that fails rolls the copy back",
+  { skip: process.getuid?.() === 0 },
+  async () => {
+    const templates = newTemplates();
+    write(path.join(templates, "gradle", ".vscode", "settings.json"), '{"a": 1}');
+    const workspace = newDir();
+    write(settingsOf(workspace), '{"b": 2}');
+    chmodSync(settingsOf(workspace), 0o444);
+
+    await assert.rejects(applyTemplate("gradle", workspace, templates, lock()));
+
+    assert.deepEqual(readdirSync(workspace).sort(), [".vscode"]);
+    assert.equal(readFileSync(settingsOf(workspace), "utf8"), '{"b": 2}');
+  },
+);

@@ -66,25 +66,27 @@ function parseSettings(text: string): any {
   return value;
 }
 
-async function mergeSettings(
-  settingsPath: string,
-  workspaceText: string,
-  templateSettingsPath: string,
-) {
+async function mergeSettings(settingsPath: string, templateSettingsPath: string) {
   const templateText = await fs.readFile(templateSettingsPath, "utf8").catch(() => undefined);
-  if (templateText === undefined) {
+  // Read now, not before the copy, so a key the student saved meanwhile is kept.
+  const workspaceText = await fs.readFile(settingsPath, "utf8").catch(() => undefined);
+  if (templateText === undefined || workspaceText === undefined) {
     return;
   }
+  let merged: string;
   try {
     const base = parseSettings(workspaceText);
     const overrides = parseSettings(templateText);
     if ([base, overrides].some((v) => typeof v !== "object" || v === null || Array.isArray(v))) {
       throw new Error("not a JSON object");
     }
-    await fs.writeFile(settingsPath, `${JSON.stringify({ ...base, ...overrides }, null, 2)}\n`);
+    merged = `${JSON.stringify({ ...base, ...overrides }, null, 2)}\n`;
   } catch (e: any) {
     console.warn(`Keeping the workspace .vscode/settings.json, could not merge: ${e.message}`);
+    return;
   }
+  // A failed write is not a parse problem: it reaches the caller, which rolls the copy back.
+  await fs.writeFile(settingsPath, merged);
 }
 
 /**
@@ -129,15 +131,12 @@ export async function applyTemplate(
         filter: (source) => source !== path.join(templateDir, TEMPLATE_MANIFEST),
       });
       if (originalSettings !== undefined) {
-        await mergeSettings(
-          settingsPath,
-          originalSettings,
-          path.join(templateDir, ".vscode", "settings.json"),
-        );
+        await mergeSettings(settingsPath, path.join(templateDir, ".vscode", "settings.json"));
       }
     } catch (e) {
       if (originalSettings !== undefined) {
-        await fs.writeFile(settingsPath, originalSettings);
+        // A failed restore must not skip removing the copied files below.
+        await fs.writeFile(settingsPath, originalSettings).catch(() => {});
       }
       // Deepest first, so a folder is only removed once its template files are gone and never
       // while it holds something else, such as a file the student saved meanwhile.
