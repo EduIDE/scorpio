@@ -171,7 +171,8 @@ it in the run page. If the `release` job fails, its message says what to fix;
 fix it in a new pull request. Until the last job (`publish-release`) succeeds,
 the GitHub Release is a draft and the tag does not exist. If a later job
 fails, fix the cause and use "Re-run failed jobs": the draft is reused and
-jobs that succeeded do not run again. A new dispatch of the same version
+jobs that succeeded do not run again. A rerun builds the original commit, so
+when the fix is a code change, merge it and dispatch again. A new dispatch of the same version
 replaces the leftover draft, but fails where a version cannot be pushed twice
 (a chart, Open VSX), so prefer the rerun. Once the release is published, never
 delete its tag or release; ship the next patch version instead.

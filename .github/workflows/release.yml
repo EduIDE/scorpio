@@ -62,7 +62,9 @@ jobs:
       - name: Upload release asset
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ needs.release.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber "./artemis-scorpio-${{ inputs.version }}.vsix"
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ inputs.version }}
+        run: gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "./artemis-scorpio-${VERSION}.vsix"
 
   # Stays in this file and in environment `prod`: the Open VSX trusted publisher
   # is registered for release.yml in this repository (and that environment).
@@ -99,6 +101,9 @@ jobs:
     needs: [release, assets, publish]
     if: ${{ !cancelled() && needs.release.result == 'success' && needs.assets.result == 'success' && needs.publish.result != 'failure' }}
     runs-on: ubuntu-latest
+    permissions:
+      # The release is still a draft; reading a draft needs push access.
+      contents: write
     steps:
       - name: Check the published artifacts
         env:
