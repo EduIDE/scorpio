@@ -18,11 +18,7 @@ images, charts and vsix files carry `X.Y.Z` without the prefix.
 
 ## Reference for this repository
 
-Version files (release.yml refuses a stable version they do not state):
-
-| File | Field |
-|---|---|
-| `package.json`, `package-lock.json` | `version`. Bump with `npm version X.Y.Z --no-git-tag-version`. A `-rc.N` is not checked. |
+Version files: none. The build stamps the version from the tag. `package.json` is not a version file; leave it alone.
 
 What a release publishes:
 
@@ -43,7 +39,7 @@ Who pins this repository (tell the user after the release):
 
 ```bash
 gh release list -R EduIDE/scorpio --limit 10
-LAST=$(gh release list -R EduIDE/scorpio --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')
+LAST=$(gh release list -R EduIDE/scorpio --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')
 git fetch origin --tags
 git log --first-parent --format='%h %s' "$LAST"..origin/main
 ```
@@ -125,6 +121,9 @@ Rules:
   prefixes in EduIDE-Helm, `**Security:**` markers).
 - Add `### Upgrade notes` when an operator has to do something beyond
   installing the new version.
+- If an earlier `-rc.N` of this version got a section of its own, copy its
+  entries into the stable section: the stable notes cover everything since the
+  last stable release.
 - Use hyphens, never em or en dashes.
 
 ## 5. Open the release pull request
@@ -149,33 +148,41 @@ unless the user asks.
 **Release candidate shortcut:** a `-rc.N` needs no release pull request.
 release.yml does not check version files for a prerelease and falls back to the
 Unreleased section for the notes. Dispatch it from the branch to test
-(step 6 with `--ref <branch>`).
+(step 6 with `--ref <branch>`). A prerelease never becomes "latest". Its
+entries stay under Unreleased, so the later stable section still lists every
+change since the last stable release.
 
 ## 6. Run release.yml after the merge
 
 ```bash
+START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 gh workflow run release.yml -R EduIDE/scorpio --ref main -f version=X.Y.Z
-sleep 5
-RUN=$(gh run list -R EduIDE/scorpio --workflow release.yml --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')
+# The run of this dispatch: yours, created after START. The release
+# concurrency group runs one release per repository at a time.
+ME=$(gh api user --jq .login)
+until RUN=$(gh run list -R EduIDE/scorpio --workflow release.yml --event workflow_dispatch \
+    --user "$ME" --created ">=$START" --limit 1 --json databaseId --jq '.[0].databaseId // empty') \
+    && [[ -n "$RUN" ]]; do sleep 3; done
 gh run watch "$RUN" -R EduIDE/scorpio --exit-status
 ```
 
 If a job waits for an environment approval (`prod`), tell the user to approve
-it in the run page. If `validate` fails, the message says what to fix; fix it
-in a new pull request, never by editing tags. If a later job fails, fix the
-cause and use "Re-run failed jobs": the tag stays, nothing is published twice.
-Never delete a tag or a release once something was published under it; ship
-the next patch version instead.
+it in the run page. If the `release` job fails, its message says what to fix;
+fix it in a new pull request. Until the last job (`publish-release`) succeeds,
+the GitHub Release is a draft and the tag does not exist. If a later job
+fails, fix the cause and use "Re-run failed jobs": the draft is reused and
+jobs that succeeded do not run again. A new dispatch of the same version
+replaces the leftover draft, but fails where a version cannot be pushed twice
+(a chart, Open VSX), so prefer the rerun. Once the release is published, never
+delete its tag or release; ship the next patch version instead.
 
 ## 7. Verify what was published
 
-Check every row of "What a release publishes", for example:
+Check every row of "What a release publishes" with the command in its Check
+column (the `verify` job already ran them), and that the release is public:
 
 ```bash
-gh release view vX.Y.Z -R EduIDE/scorpio --json url,isPrerelease,assets --jq '{url, isPrerelease, assets: [.assets[].name]}'
-crane manifest ghcr.io/eduide/<image>:X.Y.Z | jq -r '[.manifests[].platform.architecture] | join(",")'   # amd64 and arm64
-helm show chart oci://ghcr.io/eduide/charts/<chart> --version X.Y.Z
-curl -fsS https://open-vsx.org/api/<namespace>/<name>/X.Y.Z | jq -r .version
+gh release view vX.Y.Z -R EduIDE/scorpio --json url,isDraft,isPrerelease,assets --jq '{url, isDraft, isPrerelease, assets: [.assets[].name]}'
 ```
 
 Report to the user: the release link, the artifacts with their check result,

@@ -26,8 +26,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release:
+    name: Draft GitHub Release
+    permissions:
+      contents: write
+    uses: EduIDE/.github/.github/workflows/release.yml@main
+    with:
+      version: ${{ inputs.version }}
+      tag_prefix: "v"
+
   package:
     name: Package
+    needs: release
     permissions:
       contents: read
     uses: ./.github/workflows/package.yml
@@ -35,23 +45,9 @@ jobs:
     with:
       version: ${{ inputs.version }}
 
-  release:
-    name: Tag and GitHub Release
-    needs: package
-    permissions:
-      contents: write
-    uses: EduIDE/.github/.github/workflows/release.yml@main
-    with:
-      version: ${{ inputs.version }}
-      tag_prefix: "v"
-      version_check: |
-        case "$VERSION" in *-rc.*) exit 0 ;; esac
-        got=$(jq -r .version package.json)
-        [ "$got" = "$VERSION" ] || { echo "package.json says $got, expected $VERSION. Bump it in the release pull request."; exit 1; }
-
   assets:
     name: Attach vsix
-    needs: release
+    needs: [release, package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -62,10 +58,11 @@ jobs:
           name: scorpio-${{ inputs.version }}.vsix
           path: .
 
+      # The release is still a draft here, so --clobber only makes a rerun work.
       - name: Upload release asset
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ needs.release.outputs.tag }}" "./artemis-scorpio-${{ inputs.version }}.vsix" --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "${{ needs.release.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber "./artemis-scorpio-${{ inputs.version }}.vsix"
 
   # Stays in this file and in environment `prod`: the Open VSX trusted publisher
   # is registered for release.yml in this repository (and that environment).
@@ -117,3 +114,16 @@ jobs:
           fi
           echo "## Released ${TAG}" >> "$GITHUB_STEP_SUMMARY"
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_STEP_SUMMARY"
+
+  # Last: publishing the draft creates the tag. Until here a failed job leaves
+  # a draft and no tag.
+  # verify runs after a skipped Open VSX job (release candidate); without this
+  # condition that skip would also skip publishing the release.
+  publish-release:
+    needs: [release, verify]
+    if: ${{ !cancelled() && needs.verify.result == 'success' }}
+    permissions:
+      contents: write
+    uses: EduIDE/.github/.github/workflows/release-publish.yml@main
+    with:
+      tag: ${{ needs.release.outputs.tag }}
