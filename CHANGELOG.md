@@ -6,9 +6,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-16
+
 ### Features
 
-- Show the student what is happening while the workspace is prepared: a "Preparing your workspace" notification with the steps "Waiting for your exercise details", "Cloning <repository>" and "Applying template <id>", plus short status bar messages when another window is cloning or Gradle is prepared in the background. Messages never contain credentials
+- Show the student what is happening while the workspace is prepared: a "Preparing your workspace" notification with the steps "Waiting for your exercise details", "Cloning <repository>" and "Applying template <id>", plus short status bar messages when another window is cloning or Gradle is prepared in the background. Messages never contain credentials ([#225](https://github.com/EduIDE/scorpio/pull/225))
 
 ## [3.0.0] - 2026-11-16
 
