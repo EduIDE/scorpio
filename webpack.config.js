@@ -21,6 +21,10 @@ const extensionConfig = {
   resolve: {
     mainFields: ["main", "module"],
     extensions: [".ts", ".js"],
+    alias: {
+      // The UMD build loads its submodules with a require webpack cannot follow.
+      "jsonc-parser": path.join(__dirname, "node_modules/jsonc-parser/lib/esm/main.js"),
+    },
   },
   module: {
     rules: [

@@ -1,0 +1,8 @@
+{
+  "name": "scorpio-ovsx",
+  "private": true,
+  "description": "Pins the ovsx CLI that release.yml uses to publish to Open VSX",
+  "devDependencies": {
+    "ovsx": "1.3.0"
+  }
+}

@@ -1,12 +1,6 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
-import {
-  isDataBridgeEnvComplete,
-  parseGitRef,
-  parseTheiaEnv,
-  redactUrlCredentials,
-  resolveGitSource,
-} from "../theia/env-parsing";
+import { isDataBridgeEnvComplete, parseGitRef, parseTheiaEnv } from "../theia/env-parsing";
 
 const GITHUB_REPO = "https://github.com/octocat/Hello-World.git";
 
@@ -14,6 +8,11 @@ test("the data bridge is complete with GIT_URI alone, without ARTEMIS_URL", () =
   // A GitHub link through the landing page: THEIA and GIT_URI, no Artemis.
   assert.equal(isDataBridgeEnvComplete({ GIT_URI: GITHUB_REPO }), true);
   assert.equal(isDataBridgeEnvComplete({ THEIA: "true", GIT_URI: GITHUB_REPO }), true);
+});
+
+test("the data bridge is complete with TEMPLATE alone", () => {
+  assert.equal(isDataBridgeEnvComplete({ TEMPLATE: "gradle" }), true);
+  assert.equal(parseTheiaEnv({ TEMPLATE: "gradle" }).TEMPLATE, "gradle");
 });
 
 test("the data bridge is complete for an Artemis launch", () => {
@@ -70,105 +69,66 @@ test("an Artemis launch keeps its values", () => {
       ARTEMIS_URL: "https://artemis.example.org",
       GIT_URI: "https://artemis.example.org/git/EX/ex-student.git",
       GIT_REF: undefined,
-      GIT_SOURCE: "artemis",
+      GIT_SOURCE: undefined,
+      TEMPLATE: undefined,
       GIT_USER: "student",
       GIT_MAIL: "student@example.org",
       GRADLE_PREWARM: "deps",
-      GRADLE_PREWARM_AUTO_CONFIRM: true,
+      GRADLE_PREWARM_AUTO_CONFIRM: false,
     },
   );
 });
 
-test("GRADLE_PREWARM defaults to daemon for Artemis and to off for other sources", () => {
-  assert.equal(
-    parseTheiaEnv({ ARTEMIS_URL: "https://artemis.example.org" }).GRADLE_PREWARM,
-    "daemon",
-  );
-  assert.equal(parseTheiaEnv({ GIT_URI: GITHUB_REPO }).GRADLE_PREWARM, "off");
-  assert.equal(parseTheiaEnv({}).GRADLE_PREWARM, "off");
+test("GRADLE_PREWARM falls back to the default for missing or unknown values", () => {
+  assert.equal(parseTheiaEnv({}).GRADLE_PREWARM, "daemon");
+  assert.equal(parseTheiaEnv({ GRADLE_PREWARM: " FULL " }).GRADLE_PREWARM, "full");
+  assert.equal(parseTheiaEnv({ GRADLE_PREWARM: "turbo" }).GRADLE_PREWARM, "daemon");
 });
 
-test("an explicit GRADLE_PREWARM wins, unknown values fall back to the source's default", () => {
+test("GRADLE_PREWARM_AUTO_CONFIRM defaults to false and only an explicit true turns it on", () => {
+  assert.equal(parseTheiaEnv({}).GRADLE_PREWARM_AUTO_CONFIRM, false);
   assert.equal(
-    parseTheiaEnv({ GIT_URI: GITHUB_REPO, GRADLE_PREWARM: " FULL " }).GRADLE_PREWARM,
-    "full",
+    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: "" }).GRADLE_PREWARM_AUTO_CONFIRM,
+    false,
   );
   assert.equal(
-    parseTheiaEnv({ ARTEMIS_URL: "https://a.example", GRADLE_PREWARM: "turbo" }).GRADLE_PREWARM,
-    "daemon",
+    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: "yes" }).GRADLE_PREWARM_AUTO_CONFIRM,
+    false,
   );
   assert.equal(
-    parseTheiaEnv({ GIT_URI: GITHUB_REPO, GRADLE_PREWARM: "turbo" }).GRADLE_PREWARM,
-    "off",
+    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: " True " }).GRADLE_PREWARM_AUTO_CONFIRM,
+    true,
   );
 });
 
-test("GIT_SOURCE: explicit value, then ARTEMIS_URL, then the host of GIT_URI", () => {
-  assert.equal(
-    resolveGitSource({ GIT_SOURCE: "GitHub", ARTEMIS_URL: "https://a.example" }),
-    "github",
-  );
-  assert.equal(resolveGitSource({ GIT_SOURCE: "nonsense", GIT_URI: GITHUB_REPO }), "github");
-  assert.equal(
-    resolveGitSource({ ARTEMIS_URL: "https://a.example", GIT_URI: GITHUB_REPO }),
-    "artemis",
-  );
-  assert.equal(resolveGitSource({ GIT_URI: "https://GitHub.com/o/r.git" }), "github");
-  assert.equal(resolveGitSource({ GIT_URI: "https://gitlab.example.org/o/r.git" }), "other");
-  assert.equal(
-    resolveGitSource({ GIT_URI: "https://ghe.example.org/o/r.git" }, "ghe.example.org"),
-    "github",
-  );
-  assert.equal(resolveGitSource({ GIT_URI: "not a url" }), "other");
-  assert.equal(resolveGitSource({}), "other");
+test("GIT_SOURCE accepts artemis and external and ignores anything else", () => {
+  assert.equal(parseTheiaEnv({ GIT_SOURCE: " External " }).GIT_SOURCE, "external");
+  assert.equal(parseTheiaEnv({ GIT_SOURCE: "artemis" }).GIT_SOURCE, "artemis");
+  assert.equal(parseTheiaEnv({ GIT_SOURCE: "github" }).GIT_SOURCE, undefined);
+  assert.equal(parseTheiaEnv({}).GIT_SOURCE, undefined);
+});
+
+test("an external source is always asked before Gradle prewarming, whatever the image says", () => {
+  const confirm = (extra: Record<string, string>) =>
+    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: "true", ...extra }).GRADLE_PREWARM_AUTO_CONFIRM;
+
+  assert.equal(confirm({ GIT_SOURCE: "external" }), false);
+  assert.equal(confirm({ GIT_SOURCE: "artemis" }), true);
+  assert.equal(confirm({}), true);
+  // The trust decision is not inferred from ARTEMIS_URL or the host of GIT_URI.
+  assert.equal(confirm({ GIT_SOURCE: "external", ARTEMIS_URL: "https://a.example" }), false);
 });
 
 test("GIT_REF accepts branch, tag and commit names", () => {
   assert.equal(parseGitRef("main"), "main");
   assert.equal(parseGitRef(" feature/login-form "), "feature/login-form");
-  assert.equal(parseGitRef("v1.2.0"), "v1.2.0");
   assert.equal(parseGitRef("0123abcd"), "0123abcd");
-  assert.equal(parseTheiaEnv({ GIT_REF: "feature/x" }).GIT_REF, "feature/x");
+  assert.equal(parseTheiaEnv({ GIT_REF: "v1.2.0" }).GIT_REF, "v1.2.0");
 });
 
 test("GIT_REF rejects options, ranges and other invalid names", () => {
-  for (const ref of [
-    "",
-    "  ",
-    "--upload-pack=evil",
-    "-b",
-    "a..b",
-    "a b",
-    "HEAD~1",
-    "x^",
-    "a:b",
-    "x@{1}",
-    "a\\b",
-  ]) {
+  for (const ref of ["", "  ", "--upload-pack=evil", "-b", "a..b", "a b", "HEAD~1", "x^", "a:b", "x@{1}", "a\\b"]) {
     assert.equal(parseGitRef(ref), undefined, JSON.stringify(ref));
   }
   assert.equal(parseGitRef("x".repeat(256)), undefined);
-});
-
-test("credentials in URLs are redacted", () => {
-  assert.equal(
-    redactUrlCredentials(
-      "fatal: unable to access 'https://student1:s3cr3t-token@artemis.example.org/git/EX/ex.git/': 403",
-    ),
-    "fatal: unable to access 'https://***@artemis.example.org/git/EX/ex.git/': 403",
-  );
-  assert.equal(
-    redactUrlCredentials("https://token@github.com/o/r.git"),
-    "https://***@github.com/o/r.git",
-  );
-  assert.equal(redactUrlCredentials("https://github.com/o/r.git"), "https://github.com/o/r.git");
-  assert.equal(redactUrlCredentials("mail me at a@b.example"), "mail me at a@b.example");
-});
-
-test("GRADLE_PREWARM_AUTO_CONFIRM defaults to true and only an explicit false turns it off", () => {
-  assert.equal(parseTheiaEnv({}).GRADLE_PREWARM_AUTO_CONFIRM, true);
-  assert.equal(
-    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: " False " }).GRADLE_PREWARM_AUTO_CONFIRM,
-    false,
-  );
 });

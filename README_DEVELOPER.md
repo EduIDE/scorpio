@@ -12,13 +12,16 @@ npm run build
 
 ## Architecture
 
-Scorpio is a Node.js-only VS Code extension (no webview). The source is in `src/` and consists of six modules:
+Scorpio is a Node.js-only VS Code extension (no webview). The source is in `src/` and consists of nine modules:
 
 - `extension.ts` - Activation: loads Theia env, initializes settings, registers the restart command.
-- `shared/settings.ts` - Reads and protects `scorpio.artemis.apiBaseUrl` and `scorpio.defaults.repoPath`.
+- `shared/settings.ts` - Reads and protects the optional `scorpio.artemis.apiBaseUrl` and `scorpio.defaults.repoPath`.
 - `theia/env-strategy.ts` - Two strategies for reading Theia environment variables: `ProcessEnvStrategy` and `DataBridgeStrategy`. Also parses the `GRADLE_PREWARM` level.
+- `theia/env-parsing.ts` - Pure parsing helpers for the Theia environment values (such as the `GRADLE_PREWARM` level), kept free of VS Code imports so they are unit-testable.
+- `theia/progress.ts` - Student-facing progress notification ("Preparing your workspace") and status bar messages; messages never contain credentials.
 - `theia/theia.ts` - Auto-clone into workspace root with idempotence guard, git identity setup, and Gradle pre-warm trigger.
 - `participation/cloning.service.ts` - Git clone operations with workspace-root path preservation.
+- `participation/template.service.ts` - Copies a template into an empty workspace under the clone lock; validates the id against path traversal.
 - `participation/gradle.service.ts` - Background Gradle pre-warming after clone; skips non-Gradle repositories and Windows.
 
 ## Build
@@ -34,9 +37,12 @@ npm run package        # vsce package
 
 ## Release
 
-1. Go to GitHub Releases in the scorpio repository
-2. Click "Draft a new release"
-3. Choose a tag with the new version number (e.g. `v1.5.0`)
-4. Generate release notes automatically
-5. An admin reviews and approves the release
-6. GitHub builds, uploads the artifact, and publishes to the marketplace
+Releases are manual. Ask Claude to "release scorpio" (skill `.claude/skills/release`) or do it by hand:
+
+1. Open a release pull request that moves the `## [Unreleased]` entries of `CHANGELOG.md` under `## [X.Y.Z] - YYYY-MM-DD`. The CHANGELOG section becomes the GitHub release notes.
+2. After it is merged, run `gh workflow run release.yml -R EduIDE/scorpio --ref main -f version=X.Y.Z`.
+3. Approve the run in environment `prod` (required reviewers). The workflow drafts the GitHub Release, packages the vsix (version stamped from the input), attaches `artemis-scorpio-X.Y.Z.vsix`, publishes to Open VSX through trusted publishing, verifies both and publishes the release, which creates tag `vX.Y.Z`.
+
+A release candidate (`-rc.N`, for example `2.2.0-rc.1`) can be dispatched from any branch. It creates a GitHub prerelease with the vsix and never publishes to Open VSX.
+
+After a release, bump `theiaPlugins.scorpio` in EduIDE (`images/base-ide/package.json.patch`).
