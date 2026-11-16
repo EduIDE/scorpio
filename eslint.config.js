@@ -25,4 +25,11 @@ module.exports = [
       "no-throw-literal": "warn",
     },
   },
+  {
+    // Tests build environments keyed by variable names such as GIT_URI, which are upper case by nature.
+    files: ["**/*.test.ts"],
+    rules: {
+      "@typescript-eslint/naming-convention": "off",
+    },
+  },
 ];

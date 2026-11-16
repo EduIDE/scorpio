@@ -1,85 +1,12 @@
 import * as vscode from "vscode";
 import { exec } from "child_process";
 
-/**
- * Controls how much of the first Gradle build is warmed up in the background at
- * session startup (see the prewarming levels L1-L4):
- *  - "off":    no prewarming.
- *  - "daemon": start the Gradle daemon so it is warm and reused (L1).
- *  - "deps":   also configure the build and resolve/download dependencies (L3).
- *  - "full":   also compile, leaving the student's first build near-instant (L4).
- */
-export type GradlePrewarmLevel = "off" | "daemon" | "deps" | "full";
+import { ENV_KEYS, isDataBridgeEnvComplete, parseTheiaEnv, type TheiaEnv } from "./env-parsing";
 
-export type TheiaEnv = {
-  THEIA_FLAG: boolean;
-  ARTEMIS_URL: string | undefined;
-  GIT_URI: URL | undefined;
-  GIT_USER: string | undefined;
-  GIT_MAIL: string | undefined;
-  GRADLE_PREWARM: GradlePrewarmLevel;
-  GRADLE_PREWARM_AUTO_CONFIRM: boolean;
-};
-
-const ENV_KEYS = [
-  "THEIA",
-  "ARTEMIS_URL",
-  "GIT_URI",
-  "GIT_USER",
-  "GIT_MAIL",
-  "GRADLE_PREWARM",
-  "GRADLE_PREWARM_AUTO_CONFIRM",
-] as const satisfies Array<string>;
-
-const REQUIRED_ENV_KEYS = ["ARTEMIS_URL", "GIT_URI"] as const;
-
-/**
- * Default prewarm level when the environment variable is unset. Warming the
- * daemon is cheap and benefits every Gradle session, so it is the safe default.
- */
-export const DEFAULT_GRADLE_PREWARM: GradlePrewarmLevel = "daemon";
-
-function parseGradlePrewarm(value: string | undefined): GradlePrewarmLevel {
-  const level = value?.trim().toLowerCase();
-  if (level === "off" || level === "daemon" || level === "deps" || level === "full") {
-    return level;
-  }
-  if (level) {
-    console.warn(
-      `Unknown GRADLE_PREWARM value "${value}", falling back to "${DEFAULT_GRADLE_PREWARM}"`,
-    );
-  }
-  return DEFAULT_GRADLE_PREWARM;
-}
-
-/**
- * Prewarming runs the Gradle wrapper of the cloned repository. Exercise templates come from a
- * trusted Artemis by default, so it runs without asking. Set GRADLE_PREWARM_AUTO_CONFIRM to false
- * where they are not trusted: the student then has to confirm first.
- */
-function parseGradlePrewarmAutoConfirm(value: string | undefined): boolean {
-  return value?.trim().toLowerCase() !== "false";
-}
+export { DEFAULT_GRADLE_PREWARM, type GradlePrewarmLevel, type TheiaEnv } from "./env-parsing";
 
 export interface TheiaEnvStrategy {
   load(): Promise<TheiaEnv>;
-}
-
-function parseTheiaEnv(
-  env: Record<string, string | undefined>,
-  fromDataBridge: boolean = false,
-): TheiaEnv {
-  const gitUriString = env["GIT_URI"];
-  const hasRequiredKeys = !!(env["ARTEMIS_URL"] && gitUriString);
-  return {
-    THEIA_FLAG: env["THEIA"] !== undefined || (fromDataBridge && hasRequiredKeys),
-    ARTEMIS_URL: env["ARTEMIS_URL"],
-    GIT_URI: gitUriString ? new URL(gitUriString) : undefined,
-    GIT_USER: env["GIT_USER"],
-    GIT_MAIL: env["GIT_MAIL"],
-    GRADLE_PREWARM: parseGradlePrewarm(env["GRADLE_PREWARM"]),
-    GRADLE_PREWARM_AUTO_CONFIRM: parseGradlePrewarmAutoConfirm(env["GRADLE_PREWARM_AUTO_CONFIRM"]),
-  };
 }
 
 async function getEnvVariable(key: string): Promise<string | undefined> {
@@ -166,9 +93,9 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
     while (Date.now() - startTime < DataBridgeStrategy.TIMEOUT_MS) {
       const env = await this.fetchEnvironmentVariables();
 
-      // Check if we have ALL environment variables available
-      // We won't act until all environment variables are available.
-      if (REQUIRED_ENV_KEYS.every((key) => Boolean(env[key]))) {
+      // The operator delivers a session's variables in one injection, so the first one
+      // to arrive means the rest are there too (see isDataBridgeEnvComplete).
+      if (isDataBridgeEnvComplete(env)) {
         this.outputChannel.appendLine("Environment variables received from bridge");
         return parseTheiaEnv(env, true);
       }
