@@ -72,7 +72,10 @@ test("a branch ref is checked out as a local branch", async () => {
   const { url } = makeRepository();
   const workspace = emptyWorkspace();
 
-  await cloneByGivenURL(url, workspace, { mode: "workspace-root", ref: "feature/x" });
+  await cloneByGivenURL(url, workspace, {
+    mode: "workspace-root",
+    ref: "feature/x",
+  });
 
   assert.equal(read(workspace), "feature\n");
   assert.equal(git(workspace, "rev-parse", "--abbrev-ref", "HEAD"), "feature/x");
@@ -86,17 +89,30 @@ test("a tag or commit ref is checked out", async () => {
   assert.equal(read(byTag), "first\n");
 
   const byCommit = emptyWorkspace();
-  await cloneByGivenURL(url, byCommit, { mode: "workspace-root", ref: firstCommit });
+  await cloneByGivenURL(url, byCommit, {
+    mode: "workspace-root",
+    ref: firstCommit,
+  });
   assert.equal(read(byCommit), "first\n");
 });
 
-test("an unknown ref fails after cloning, with git's reason", async () => {
+test("an unknown ref keeps the clone on the default branch and reports it", async () => {
   const { url } = makeRepository();
   const workspace = emptyWorkspace();
+  const failed: string[] = [];
 
-  await assert.rejects(
-    cloneByGivenURL(url, workspace, { mode: "workspace-root", ref: "does-not-exist" }),
-    /does-not-exist/,
+  await cloneByGivenURL(url, workspace, {
+    mode: "workspace-root",
+    ref: "does-not-exist",
+    onRefFailed: (ref) => failed.push(ref),
+  });
+
+  assert.equal(read(workspace), "main\n");
+  assert.deepEqual(failed, ["does-not-exist"]);
+  // The preserved entries are excluded as after any successful clone.
+  assert.match(
+    fs.readFileSync(path.join(workspace, ".git", "info", "exclude"), "utf8"),
+    /settings\.json/,
   );
 });
 

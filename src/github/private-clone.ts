@@ -4,10 +4,7 @@
  */
 
 import * as vscode from "vscode";
-import {
-  cloneByGivenURL,
-  withCloneLock,
-} from "../participation/cloning.service";
+import { cloneByGivenURL, withCloneLock } from "../participation/cloning.service";
 import { isRepoAlreadyCloned } from "../theia/theia";
 import { workspaceContent } from "../participation/template.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
@@ -47,15 +44,7 @@ export async function handleCloneFailure(
     );
     return true;
   }
-  void offerPrivateClone(
-    session,
-    repo,
-    uri,
-    workspacePath,
-    ref,
-    prewarm,
-    prewarmAutoConfirm,
-  );
+  void offerPrivateClone(session, repo, uri, workspacePath, ref, prewarm, prewarmAutoConfirm);
   return true;
 }
 
@@ -75,15 +64,7 @@ async function offerPrivateClone(
   if (!choice || !(await session.ensureSignedIn("repo"))) {
     return;
   }
-  await clonePrivate(
-    session,
-    repo,
-    uri,
-    workspacePath,
-    ref,
-    prewarm,
-    prewarmAutoConfirm,
-  );
+  await clonePrivate(session, repo, uri, workspacePath, ref, prewarm, prewarmAutoConfirm);
 }
 
 export async function clonePrivate(
@@ -122,6 +103,10 @@ export async function clonePrivate(
               mode: "workspace-root",
               ref,
               gitEnv,
+              onRefFailed: (failed) =>
+                vscode.window.showWarningMessage(
+                  `Could not check out "${failed}". The default branch is checked out instead.`,
+                ),
             }),
           ),
       );

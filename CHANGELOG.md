@@ -7,7 +7,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ## [Unreleased]
 
 - Sign in to GitHub, push to the repository or a fork, and clone private repositories
-- `GIT_REF` checks out a branch, tag or commit after a fresh clone, and `GIT_SOURCE=external` always asks the student before Gradle pre-warming runs, whatever `GRADLE_PREWARM_AUTO_CONFIRM` says
+- `GIT_REF` checks out a branch, tag or commit after a fresh clone, and `GIT_SOURCE=external` always asks the student before Gradle pre-warming runs, whatever `GRADLE_PREWARM_AUTO_CONFIRM` says (any `GIT_SOURCE` other than `artemis` counts as external). An invalid or unknown `GIT_REF` warns the student and keeps the default branch
 
 ## [3.1.0] - 2026-11-16
 
