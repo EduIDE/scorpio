@@ -6,14 +6,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-16
+
 ### Breaking changes
 
-- `GRADLE_PREWARM_AUTO_CONFIRM` now defaults to `false`: the student is asked before pre-warming runs the repository's Gradle wrapper. Set it to `true` in the deployment to keep the old behavior. In data bridge mode the value is read from the pod environment, and a value delivered through the bridge is ignored. A template copy is still pre-warmed without asking (internal security audit 2026-11-16, SC-02, [#223](https://github.com/EduIDE/scorpio/pull/223))
+- `GRADLE_PREWARM_AUTO_CONFIRM` now defaults to `false`: the student is asked before pre-warming runs the repository's Gradle wrapper. The value is read only from the pod or image environment; a value delivered through the data bridge is ignored. The EduIDE Artemis Java images set it to `true`. Other deployments that want the old behavior set it to `true` in their environment. A template copy is still pre-warmed without asking (SC-02, [#223](https://github.com/EduIDE/scorpio/pull/223))
+- Scorpio never clears a workspace that has content. It clones only into an empty workspace; if the checkout does not match `GIT_URI` (renamed remote, changed origin, git error), the student gets a warning instead of losing files, and no Gradle pre-warm runs. A checkout is matched by host and path, and its origin URL is refreshed from `GIT_URI` (SC-01, [#223](https://github.com/EduIDE/scorpio/pull/223))
+- Clone credentials in `GIT_URI` go through a credential helper instead of the `git clone` command line. Known limitation: the token stays in the `origin` URL in `.git/config` on the workspace volume, because the Artemis extension pushes with plain `git push` (SC-03, [#223](https://github.com/EduIDE/scorpio/pull/223))
 
 ### Fixes
 
-- **Security:** Credentials in `GIT_URI` are no longer passed on the `git clone` command line. Known limitation: `origin` still carries them in `.git/config` on the workspace volume, because the Artemis extension pushes with plain `git push` (internal security audit 2026-11-16, SC-03, [#223](https://github.com/EduIDE/scorpio/pull/223))
-- **Security:** Scorpio never clears a workspace that has content. It clones only into an empty workspace; if the checkout does not match `GIT_URI` (renamed remote, changed origin, git error), the student gets a warning instead of losing files, and no Gradle pre-warm runs. A checkout is matched by host and path, and its origin URL is refreshed from `GIT_URI` (internal security audit 2026-11-16, SC-01, [#223](https://github.com/EduIDE/scorpio/pull/223))
+- **Security:** The release workflows pass `inputs.version` through `env:`, and `ovsx` is installed from a lockfile so its dependency tree is pinned (CI-01, [#223](https://github.com/EduIDE/scorpio/pull/223))
 
 ## [2.2.0] - 2026-11-16
 
