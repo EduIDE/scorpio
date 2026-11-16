@@ -12,11 +12,13 @@ npm run build
 
 ## Architecture
 
-Scorpio is a Node.js-only VS Code extension (no webview). The source is in `src/` and consists of seven modules:
+Scorpio is a Node.js-only VS Code extension (no webview). The source is in `src/` and consists of nine modules:
 
 - `extension.ts` - Activation: loads Theia env, initializes settings, registers the restart command.
 - `shared/settings.ts` - Reads and protects the optional `scorpio.artemis.apiBaseUrl` and `scorpio.defaults.repoPath`.
 - `theia/env-strategy.ts` - Two strategies for reading Theia environment variables: `ProcessEnvStrategy` and `DataBridgeStrategy`. Also parses the `GRADLE_PREWARM` level.
+- `theia/env-parsing.ts` - Pure parsing helpers for the Theia environment values (such as the `GRADLE_PREWARM` level), kept free of VS Code imports so they are unit-testable.
+- `theia/progress.ts` - Student-facing progress notification ("Preparing your workspace") and status bar messages; messages never contain credentials.
 - `theia/theia.ts` - Auto-clone into workspace root with idempotence guard, git identity setup, and Gradle pre-warm trigger.
 - `participation/cloning.service.ts` - Git clone operations with workspace-root path preservation.
 - `participation/template.service.ts` - Copies a template into an empty workspace under the clone lock; validates the id against path traversal.
