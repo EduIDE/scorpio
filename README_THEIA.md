@@ -6,16 +6,16 @@ Scorpio is primarily designed for Theia/EduIDE environments. All core features (
 
 Scorpio reads the following variables from the Theia environment:
 
-| Variable                      | Required | Purpose                                                                                          |
-| ----------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `ARTEMIS_URL`                 | No       | Artemis server base URL (Artemis exercises only)                                                 |
-| `GIT_URI`                     | No       | Repository URL to clone; wins over `TEMPLATE`                                                    |
-| `TEMPLATE`                    | No       | Template id copied into an empty workspace when `GIT_URI` is unset                               |
-| `SCORPIO_TEMPLATES_DIR`       | No       | Templates directory (default `/home/theia/templates`)                                            |
-| `GIT_USER`                    | No       | Git username (falls back to hostname)                                                            |
-| `GIT_MAIL`                    | No       | Git email (falls back to `<username>@artemis-theia.de`)                                          |
-| `THEIA`                       | No       | Explicit Theia flag (auto-detected via DataBridge)                                               |
-| `GRADLE_PREWARM`              | No       | Gradle pre-warm level: `off`, `daemon` (default), `deps`, or `full`                              |
+| Variable                      | Required | Purpose                                                                                                                                                         |
+| ----------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ARTEMIS_URL`                 | No       | Artemis server base URL (Artemis exercises only)                                                                                                                |
+| `GIT_URI`                     | No       | Repository URL to clone; wins over `TEMPLATE`                                                                                                                   |
+| `TEMPLATE`                    | No       | Template id copied into an empty workspace when `GIT_URI` is unset                                                                                              |
+| `SCORPIO_TEMPLATES_DIR`       | No       | Templates directory (default `/home/theia/templates`)                                                                                                           |
+| `GIT_USER`                    | No       | Git username (falls back to hostname)                                                                                                                           |
+| `GIT_MAIL`                    | No       | Git email (falls back to `<username>@artemis-theia.de`)                                                                                                         |
+| `THEIA`                       | No       | Explicit Theia flag (auto-detected via DataBridge)                                                                                                              |
+| `GRADLE_PREWARM`              | No       | Gradle pre-warm level: `off`, `daemon` (default), `deps`, or `full`                                                                                             |
 | `GRADLE_PREWARM_AUTO_CONFIRM` | No       | `true` runs pre-warming without asking the student. Default `false`: the student confirms first. Read from the pod environment only, never from the data bridge |
 
 ## Startup Behavior
