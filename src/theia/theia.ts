@@ -3,11 +3,11 @@ import { GitConfigScope, simpleGit } from "simple-git";
 import { hostname } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
-import { cloneByGivenURL, splitCredentials, withCloneLock } from "../participation/cloning.service";
+import { cloneByGivenURL, setOrigin, withCloneLock } from "../participation/cloning.service";
 import {
   applyTemplate,
   DEFAULT_TEMPLATES_DIR,
-  isWorkspaceEmpty,
+  workspaceContent,
 } from "../participation/template.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
@@ -67,11 +67,11 @@ async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promi
     return false;
   }
 
-  // Older clones may hold a token in the origin URL; rewrite it without. Not worth failing the start over.
+  // Same repository, so take over the current URL (a rotated token must reach .git/config). Not worth failing the start over.
   try {
-    await simpleGit(workspacePath).remote(["set-url", "origin", splitCredentials(targetUri).url]);
-  } catch (e: any) {
-    console.warn(`Could not refresh the origin URL: ${e.message}`);
+    await setOrigin(workspacePath, targetUri);
+  } catch {
+    console.warn("Could not refresh the origin URL");
   }
   return true;
 }
@@ -90,19 +90,27 @@ export async function initTheia() {
 
     const repoUri = theiaEnv.GIT_URI;
     const workspacePath = workspaceFolderUri.fsPath;
+    let skipPrewarm = false;
     try {
       // Check inside the lock: the window that held it may have just finished the same clone.
       const ranAlone = await withCloneLock(async () => {
         if (await isRepoAlreadyCloned(workspacePath, repoUri)) {
           console.log("Repository already present, skipping auto-clone");
-        } else if (await isWorkspaceEmpty(workspacePath)) {
-          await cloneByGivenURL(repoUri, workspacePath, { mode: "workspace-root" });
         } else {
-          // Never clear files that might be the student's: the checkout may only look different (renamed remote, git error).
-          const message =
-            "This workspace already contains files that do not match the exercise repository, so the exercise was not cloned.";
-          console.warn(message);
-          vscode.window.showWarningMessage(message);
+          const content = await workspaceContent(workspacePath);
+          if (content.length === 0) {
+            await cloneByGivenURL(repoUri, workspacePath, { mode: "workspace-root" });
+          } else {
+            // Never clear files that might be the student's: the checkout may only look different (renamed remote, git error).
+            skipPrewarm = true;
+            console.warn(
+              `Exercise not cloned, the workspace already contains: ${content.join(", ")}`,
+            );
+            vscode.window.showWarningMessage(
+              "The exercise was not cloned because this workspace already contains files. " +
+                "Empty the workspace or start a new one to get the exercise.",
+            );
+          }
         }
       });
       if (!ranAlone) {
@@ -117,11 +125,13 @@ export async function initTheia() {
     // Pre-warm Gradle in the background every session so the student's build is faster,
     // even on restarts where the repo is already present but the daemon is cold.
     // Depth is controlled by GRADLE_PREWARM; warmupGradleDaemon skips non-Gradle repos.
-    void warmupGradleDaemon(
-      workspaceFolderUri.fsPath,
-      theiaEnv.GRADLE_PREWARM,
-      theiaEnv.GRADLE_PREWARM_AUTO_CONFIRM,
-    );
+    if (!skipPrewarm) {
+      void warmupGradleDaemon(
+        workspaceFolderUri.fsPath,
+        theiaEnv.GRADLE_PREWARM,
+        theiaEnv.GRADLE_PREWARM_AUTO_CONFIRM,
+      );
+    }
   }
 
   // GIT_URI wins: a template is never applied over a clone.
@@ -150,11 +160,8 @@ export async function initTheia() {
       vscode.window.showErrorMessage("Could not copy the template into the workspace");
     }
 
-    void warmupGradleDaemon(
-      workspaceFolderUri.fsPath,
-      theiaEnv.GRADLE_PREWARM,
-      theiaEnv.GRADLE_PREWARM_AUTO_CONFIRM,
-    );
+    // Template code comes from the image or the student's own workspace, so no prompt.
+    void warmupGradleDaemon(workspaceFolderUri.fsPath, theiaEnv.GRADLE_PREWARM, true);
   }
 
   if (theiaEnv.THEIA_FLAG) {

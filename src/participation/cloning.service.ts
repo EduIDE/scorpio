@@ -67,8 +67,8 @@ export function splitCredentials(cloneUrl: URL): { url: string; user: string; pa
 
 /**
  * Runs `clone` with the credentials supplied through a credential helper that prints them from a private temp file.
- * They are in neither the git arguments nor the environment, and, because `-c` comes before the subcommand,
- * not in .git/config. The file lives only for that one command.
+ * They are in neither the git arguments nor the environment of the clone. The file lives only for that one command.
+ * Callers that need the credentials afterwards (see setOrigin) store them on purpose.
  */
 async function withCredentialHelper<T>(
   user: string,
@@ -94,6 +94,14 @@ async function withCredentialHelper<T>(
   }
 }
 
+/**
+ * Points origin at the URL as given, credentials included: the Artemis extension pushes with a plain `git push`
+ * and relies on them. Known limitation: the token stays in .git/config on the workspace volume.
+ */
+export async function setOrigin(repoPath: string, cloneUrl: URL): Promise<void> {
+  await simpleGit(repoPath).remote(["set-url", "origin", cloneUrl.toString()]);
+}
+
 export async function cloneByGivenURL(
   cloneUrl: URL,
   destinationPath: string,
@@ -114,6 +122,7 @@ export async function cloneByGivenURL(
 
   try {
     await withCredentialHelper(user, password, destinationPath, (git) => git.clone(url, clonePath));
+    await setOrigin(clonePath, cloneUrl);
   } catch (e: any) {
     throw new Error(`Error cloning repository: ${e.message}`);
   }
@@ -141,6 +150,7 @@ async function cloneIntoWorkspaceRoot(
 
     const { url, user, password } = splitCredentials(cloneUrl);
     await withCredentialHelper(user, password, workspacePath, (git) => git.clone(url, "."));
+    await setOrigin(workspacePath, cloneUrl);
     cloneSucceeded = true;
 
     return workspacePath;

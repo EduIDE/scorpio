@@ -166,7 +166,7 @@ test("an unknown TEMPLATE shows a notification and the session still starts", as
 });
 
 const NOT_CLONED_WARNING =
-  "This workspace already contains files that do not match the exercise repository, so the exercise was not cloned.";
+  "The exercise was not cloned because this workspace already contains files. Empty the workspace or start a new one to get the exercise.";
 
 async function assertWorkspaceKept() {
   assert.equal(readFileSync(path.join(workspace, "Solution.java"), "utf8"), "student work");
@@ -236,24 +236,49 @@ test("scheme and credentials of the origin do not make the checkout a mismatch",
   assert.deepEqual(vscodeStub.window.warnings, []);
 });
 
-test("reusing a checkout removes credentials from its origin URL", async () => {
-  const repo = newExerciseRepo();
-  theiaEnv.GIT_URI = repo;
+test("reusing a checkout takes over the current GIT_URI including its credentials", async () => {
+  theiaEnv.GIT_URI = newExerciseRepo();
   await initTheia();
   git(workspace, "remote", "set-url", "origin", "https://oldtoken@example.org/x.git");
   theiaEnv.GIT_URI = new URL("https://newtoken:s3cret@EXAMPLE.org/x");
 
   await initTheia();
 
-  assert.equal(git(workspace, "remote", "get-url", "origin"), "https://example.org/x");
+  assert.equal(
+    git(workspace, "remote", "get-url", "origin"),
+    "https://newtoken:s3cret@example.org/x",
+  );
   assert.deepEqual(vscodeStub.window.warnings, []);
 });
 
-test("credentials in GIT_URI reach git only through the credential helper and are not stored", async () => {
+test("a workspace that was not cloned into is not prewarmed", async () => {
+  theiaEnv.GIT_URI = newExerciseRepo();
+  writeFileSync(path.join(workspace, "gradlew"), "#!/bin/sh\ntouch ran\n");
+  Object.assign(theiaEnv, { GRADLE_PREWARM: "daemon", GRADLE_PREWARM_AUTO_CONFIRM: true });
+
+  await initTheia();
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  assert.deepEqual(vscodeStub.window.warnings, [NOT_CLONED_WARNING]);
+  assert.equal(existsSync(path.join(workspace, "ran")), false);
+});
+
+test("credentials in GIT_URI reach git through the credential helper, not the process arguments", async () => {
   const bare = newDir();
   git(bare, "clone", "-q", "--bare", newExerciseRepo().toString(), ".");
   git(bare, "update-server-info");
   const seen: (string | undefined)[] = [];
+  // A git wrapper on PATH records the arguments of every git process.
+  const realGit = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  const wrapperDir = newDir();
+  const argLog = path.join(wrapperDir, "args.log");
+  writeFileSync(
+    path.join(wrapperDir, "git"),
+    `#!/bin/sh\necho "$*" >> '${argLog}'\nexec '${realGit}' "$@"\n`,
+    { mode: 0o755 },
+  );
+  const oldPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${oldPath}`;
   const server = createServer((req, res) => {
     seen.push(req.headers.authorization);
     if (req.headers.authorization !== "Basic " + Buffer.from("student:tok/en").toString("base64")) {
@@ -280,6 +305,7 @@ test("credentials in GIT_URI reach git only through the credential helper and ar
   try {
     await initTheia();
   } finally {
+    process.env.PATH = oldPath;
     server.close();
     server.closeAllConnections();
   }
@@ -287,6 +313,9 @@ test("credentials in GIT_URI reach git only through the credential helper and ar
   assert.deepEqual(vscodeStub.window.errors, []);
   assert.equal(existsSync(path.join(workspace, "README.md")), true);
   assert.equal(seen.includes("Basic " + Buffer.from("student:tok/en").toString("base64")), true);
-  assert.equal(git(workspace, "remote", "get-url", "origin"), `http://127.0.0.1:${port}/`);
-  assert.equal(readFileSync(path.join(workspace, ".git", "config"), "utf8").includes("tok"), false);
+  assert.equal(git(workspace, "remote", "get-url", "origin"), theiaEnv.GIT_URI!.toString());
+  const args = readFileSync(argLog, "utf8");
+  const cloneCalls = args.split("\n").filter((line) => / clone /.test(` ${line} `));
+  assert.equal(cloneCalls.length, 1);
+  assert.equal(/tok|student/.test(cloneCalls[0]), false);
 });
