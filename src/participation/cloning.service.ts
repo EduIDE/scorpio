@@ -1,4 +1,4 @@
-import { simpleGit } from "simple-git";
+import { simpleGit, type SimpleGit } from "simple-git";
 import { tmpdir } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
@@ -23,7 +23,7 @@ type PreservedWorkspaceEntry = {
   isDirectory: boolean;
 };
 
-const THEIA_PRESERVED_PATHS = [".vscode/settings.json", ".theia", "persisted", "lost+found"];
+export const THEIA_PRESERVED_PATHS = [".vscode/settings.json", ".theia", "persisted", "lost+found"];
 
 const CLONE_LOCK_PATH = path.join(tmpdir(), "scorpio-workspace-clone.lock");
 // shortcut: assumes a clone finishes within this time, raise it if a window can replace a slow clone.
@@ -58,6 +58,57 @@ export async function withCloneLock(
   }
 }
 
+/**
+ * Splits the credentials off a clone URL, so they reach neither the git arguments nor .git/config.
+ */
+export function splitCredentials(cloneUrl: URL): { url: string; user: string; password: string } {
+  const bare = new URL(cloneUrl.toString());
+  bare.username = "";
+  bare.password = "";
+  return {
+    url: bare.toString(),
+    user: decodeURIComponent(cloneUrl.username),
+    password: decodeURIComponent(cloneUrl.password),
+  };
+}
+
+/**
+ * Runs `clone` with the credentials supplied through a credential helper that prints them from a private temp file.
+ * They are in neither the git arguments nor the environment of the clone. The file lives only for that one command.
+ * Callers that need the credentials afterwards (see setOrigin) store them on purpose.
+ */
+async function withCredentialHelper<T>(
+  user: string,
+  password: string,
+  cwd: string,
+  clone: (git: SimpleGit) => Promise<T>,
+): Promise<T> {
+  if (!user && !password) {
+    return clone(simpleGit(cwd));
+  }
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "scorpio-git-credentials-"));
+  try {
+    const file = path.join(dir, "credentials");
+    await fs.writeFile(file, `username=${user}\npassword=${password}\n`, { mode: 0o600 });
+    const quoted = `'${file.replace(/'/g, `'\\''`)}'`;
+    // The first, empty helper drops helpers from the user's own git config, which could store the token.
+    const config = ["credential.helper=", `credential.helper=!cat ${quoted} #`];
+    return await clone(
+      simpleGit({ baseDir: cwd, config, unsafe: { allowUnsafeCredentialHelper: true } }),
+    );
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Points origin at the URL as given, credentials included: the Artemis extension pushes with a plain `git push`
+ * and relies on them. Known limitation: the token stays in .git/config on the workspace volume.
+ */
+export async function setOrigin(repoPath: string, cloneUrl: URL): Promise<void> {
+  await simpleGit(repoPath).remote(["set-url", "origin", cloneUrl.toString()]);
+}
+
 export async function cloneByGivenURL(
   cloneUrl: URL,
   destinationPath: string,
@@ -76,10 +127,11 @@ export async function cloneByGivenURL(
   const repoName = path.basename(cloneUrl.pathname, ".git");
   const clonePath = path.join(destinationPath, repoName);
 
-  const gitForClone = simpleGit(destinationPath);
+  const { url, user, password } = splitCredentials(cloneUrl);
 
   try {
-    await gitForClone.clone(cloneUrl.toString(), clonePath);
+    await withCredentialHelper(user, password, destinationPath, (git) => git.clone(url, clonePath));
+    await setOrigin(clonePath, cloneUrl);
   } catch (e: any) {
     throw new Error(`Error cloning repository: ${e.message}`);
   }
@@ -107,20 +159,25 @@ async function cloneIntoWorkspaceRoot(
   try {
     await clearDirectory(workspacePath);
 
-    const gitForClone = gitEnv
-      ? simpleGit({
-          baseDir: workspacePath,
-          unsafe: { allowUnsafeAskPass: true },
-          allowEnvironment: ["GIT_ASKPASS", "GIT_TERMINAL_PROMPT"],
-        }).env(gitEnv)
-      : simpleGit(workspacePath);
-    await gitForClone.clone(cloneUrl.toString(), ".");
-    cloneSucceeded = true;
+    const { url, user, password } = splitCredentials(cloneUrl);
+    if (gitEnv) {
+      await simpleGit({
+        baseDir: workspacePath,
+        unsafe: { allowUnsafeAskPass: true },
+        allowEnvironment: ["GIT_ASKPASS", "GIT_TERMINAL_PROMPT"],
+      })
+        .env(gitEnv)
+        .clone(url, ".");
+    } else {
+      await withCredentialHelper(user, password, workspacePath, (git) => git.clone(url, "."));
+    }
+    await setOrigin(workspacePath, cloneUrl);
     if (ref) {
       // A full clone has every branch and tag, so one checkout covers branches, tags and commits.
       // "--" keeps git from reading the ref as a path.
-      await gitForClone.raw(["checkout", "--quiet", ref, "--"]);
+      await simpleGit(workspacePath).raw(["checkout", "--quiet", ref, "--"]);
     }
+    cloneSucceeded = true;
 
     return workspacePath;
   } catch (e: any) {

@@ -24,7 +24,7 @@ import {
 import type { GitHubSession } from "./session";
 import type { GitSource } from "../theia/env-parsing";
 
-export async function pushToGitHub(session: GitHubSession, source: GitSource): Promise<void> {
+export async function pushToGitHub(session: GitHubSession, source: GitSource | undefined): Promise<void> {
   const gitApi = await getGitApi();
   const workspace = vscode.workspace.workspaceFolders?.at(0)?.uri;
   const repository = workspace

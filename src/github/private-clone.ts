@@ -4,8 +4,12 @@
  */
 
 import * as vscode from "vscode";
-import { cloneByGivenURL, withCloneLock } from "../participation/cloning.service";
+import {
+  cloneByGivenURL,
+  withCloneLock,
+} from "../participation/cloning.service";
 import { isRepoAlreadyCloned } from "../theia/theia";
+import { workspaceContent } from "../participation/template.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import type { GitHubSession } from "./session";
 import { withAskpass } from "./askpass";
@@ -43,7 +47,15 @@ export async function handleCloneFailure(
     );
     return true;
   }
-  void offerPrivateClone(session, repo, uri, workspacePath, ref, prewarm, prewarmAutoConfirm);
+  void offerPrivateClone(
+    session,
+    repo,
+    uri,
+    workspacePath,
+    ref,
+    prewarm,
+    prewarmAutoConfirm,
+  );
   return true;
 }
 
@@ -63,7 +75,15 @@ async function offerPrivateClone(
   if (!choice || !(await session.ensureSignedIn("repo"))) {
     return;
   }
-  await clonePrivate(session, repo, uri, workspacePath, ref, prewarm, prewarmAutoConfirm);
+  await clonePrivate(
+    session,
+    repo,
+    uri,
+    workspacePath,
+    ref,
+    prewarm,
+    prewarmAutoConfirm,
+  );
 }
 
 export async function clonePrivate(
@@ -87,6 +107,10 @@ export async function clonePrivate(
       if (await isRepoAlreadyCloned(workspacePath, uri)) {
         return;
       }
+      // A clone replaces the workspace content, and files the student created since startup are never cleared.
+      if ((await workspaceContent(workspacePath)).length > 0) {
+        throw new Error("the workspace already contains files");
+      }
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
@@ -94,7 +118,11 @@ export async function clonePrivate(
         },
         () =>
           withAskpass(session.user!.login, session.token!, (gitEnv) =>
-            cloneByGivenURL(uri, workspacePath, { mode: "workspace-root", ref, gitEnv }),
+            cloneByGivenURL(uri, workspacePath, {
+              mode: "workspace-root",
+              ref,
+              gitEnv,
+            }),
           ),
       );
     });
