@@ -260,7 +260,11 @@ test("credentials in GIT_URI reach git only through the credential helper and ar
       res.writeHead(401, { "WWW-Authenticate": 'Basic realm="git"' }).end();
       return;
     }
-    const file = path.join(bare, decodeURIComponent(req.url!.split("?")[0]));
+    const file = path.resolve(bare, "." + decodeURIComponent(req.url!.split("?")[0]));
+    if (!file.startsWith(bare + path.sep)) {
+      res.writeHead(403).end();
+      return;
+    }
     let body: Buffer | undefined;
     try {
       body = readFileSync(file);
