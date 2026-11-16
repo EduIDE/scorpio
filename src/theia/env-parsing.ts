@@ -31,6 +31,10 @@ export type TheiaEnv = {
   GIT_MAIL: string | undefined;
   GRADLE_PREWARM: GradlePrewarmLevel;
   GRADLE_PREWARM_AUTO_CONFIRM: boolean;
+  /** Per-installation overrides of the scorpio.github.* settings, as raw strings (see src/github/config.ts). */
+  GITHUB_CLIENT_ID: string | undefined;
+  GITHUB_PRIVATE_REPOS: string | undefined;
+  GITHUB_HOST: string | undefined;
 };
 
 export const ENV_KEYS = [
@@ -44,6 +48,9 @@ export const ENV_KEYS = [
   "GIT_MAIL",
   "GRADLE_PREWARM",
   "GRADLE_PREWARM_AUTO_CONFIRM",
+  "SCORPIO_GITHUB_CLIENT_ID",
+  "SCORPIO_GITHUB_PRIVATE_REPOS",
+  "SCORPIO_GITHUB_HOST",
 ] as const satisfies Array<string>;
 
 /**
@@ -136,5 +143,16 @@ export function parseTheiaEnv(
     // The image's auto-confirm is meant for trusted Artemis exercises, so an external repository always asks.
     GRADLE_PREWARM_AUTO_CONFIRM:
       parseGradlePrewarmAutoConfirm(env["GRADLE_PREWARM_AUTO_CONFIRM"]) && source !== "external",
+    GITHUB_CLIENT_ID: env["SCORPIO_GITHUB_CLIENT_ID"],
+    GITHUB_PRIVATE_REPOS: env["SCORPIO_GITHUB_PRIVATE_REPOS"],
+    GITHUB_HOST: env["SCORPIO_GITHUB_HOST"],
   };
+}
+
+/**
+ * Removes credentials embedded in URLs (`https://user:token@host/...`), e.g. from a git or GitHub error message, before
+ * it is shown or logged.
+ */
+export function redactUrlCredentials(text: string): string {
+  return text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^/\s@]+@/gi, "$1***@");
 }

@@ -7,6 +7,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { cloneByGivenURL } from "../participation/cloning.service";
+import { withAskpass } from "../github/askpass";
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, {
@@ -113,4 +114,15 @@ test("an unknown ref keeps the clone on the default branch and reports it", asyn
     fs.readFileSync(path.join(workspace, ".git", "info", "exclude"), "utf8"),
     /settings\.json/,
   );
+});
+
+test("a clone with a GIT_ASKPASS environment passes simple-git's environment guard", async () => {
+  const { url } = makeRepository();
+  const workspace = emptyWorkspace();
+
+  await withAskpass("student", "token", (gitEnv) =>
+    cloneByGivenURL(url, workspace, { mode: "workspace-root", gitEnv }),
+  );
+
+  assert.equal(read(workspace), "main\n");
 });

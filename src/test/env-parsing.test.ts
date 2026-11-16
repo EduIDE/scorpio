@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
-import { isDataBridgeEnvComplete, parseGitRef, parseTheiaEnv } from "../theia/env-parsing";
+import {
+  isDataBridgeEnvComplete,
+  parseGitRef,
+  parseTheiaEnv,
+  redactUrlCredentials,
+} from "../theia/env-parsing";
 
 const GITHUB_REPO = "https://github.com/octocat/Hello-World.git";
 
@@ -76,6 +81,9 @@ test("an Artemis launch keeps its values", () => {
       GIT_MAIL: "student@example.org",
       GRADLE_PREWARM: "deps",
       GRADLE_PREWARM_AUTO_CONFIRM: false,
+      GITHUB_CLIENT_ID: undefined,
+      GITHUB_PRIVATE_REPOS: undefined,
+      GITHUB_HOST: undefined,
     },
   );
 });
@@ -147,6 +155,25 @@ test("GIT_REF rejects options, ranges and other invalid names", () => {
     assert.equal(parseGitRef(ref), undefined, JSON.stringify(ref));
   }
   assert.equal(parseGitRef("x".repeat(256)), undefined);
+});
+
+test("the GitHub overrides pass through", () => {
+  const env = parseTheiaEnv({
+    SCORPIO_GITHUB_CLIENT_ID: "Iv1.x",
+    SCORPIO_GITHUB_PRIVATE_REPOS: "false",
+    SCORPIO_GITHUB_HOST: "ghe.example.org",
+  });
+  assert.equal(env.GITHUB_CLIENT_ID, "Iv1.x");
+  assert.equal(env.GITHUB_PRIVATE_REPOS, "false");
+  assert.equal(env.GITHUB_HOST, "ghe.example.org");
+});
+
+test("credentials in URLs are redacted", () => {
+  assert.equal(
+    redactUrlCredentials("fatal: unable to access 'https://user:tok@host.example/o/r.git/': 403"),
+    "fatal: unable to access 'https://***@host.example/o/r.git/': 403",
+  );
+  assert.equal(redactUrlCredentials("https://github.com/o/r.git"), "https://github.com/o/r.git");
 });
 
 test("a rejected GIT_REF is kept for the notification", () => {

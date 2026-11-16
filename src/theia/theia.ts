@@ -11,6 +11,7 @@ import {
 } from "../participation/template.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import { withWorkspaceProgress } from "./progress";
+import type { GitHubIntegration } from "../github";
 import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
 
 export let theiaEnv: TheiaEnv = {
@@ -25,6 +26,9 @@ export let theiaEnv: TheiaEnv = {
   GIT_MAIL: undefined,
   GRADLE_PREWARM: DEFAULT_GRADLE_PREWARM,
   GRADLE_PREWARM_AUTO_CONFIRM: false,
+  GITHUB_CLIENT_ID: undefined,
+  GITHUB_PRIVATE_REPOS: undefined,
+  GITHUB_HOST: undefined,
 };
 
 export async function loadTheiaEnv(): Promise<void> {
@@ -54,7 +58,7 @@ function normalizeRepoUrl(raw: string): string {
   }
 }
 
-async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promise<boolean> {
+export async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promise<boolean> {
   const gitPath = path.join(workspacePath, ".git");
   try {
     await fs.stat(gitPath);
@@ -90,7 +94,7 @@ function repoDisplayName(repoUri: URL): string {
   return path.basename(repoUri.pathname, ".git") || repoUri.host;
 }
 
-export async function initTheia() {
+export async function initTheia(github?: GitHubIntegration) {
   if (theiaEnv.GIT_URI) {
     vscode.commands.executeCommand("setContext", "scorpio.theia.givenExercise", true);
   }
@@ -150,7 +154,14 @@ export async function initTheia() {
       } catch (e: any) {
         // Still write the git identity below, or a clone retried by hand commits as the wrong user.
         console.error(e.message);
-        vscode.window.showErrorMessage("Could not clone the exercise repository");
+        // A private GitHub repository fails here too; the GitHub module checks the host and offers to sign in.
+        const handled =
+          theiaEnv.GIT_SOURCE === "external" &&
+          github !== undefined &&
+          (await github.handleCloneFailure(repoUri, workspacePath));
+        if (!handled) {
+          vscode.window.showErrorMessage("Could not clone the exercise repository");
+        }
       }
     });
 
