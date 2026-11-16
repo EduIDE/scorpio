@@ -39,7 +39,7 @@ jobs:
 
       - name: Change version
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ inputs.version || '0.0.0' }}
         run: npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install Dependencies
