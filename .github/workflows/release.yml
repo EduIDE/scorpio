@@ -92,15 +92,15 @@ jobs:
         with:
           node-version: 20
 
-      # ovsx comes from package-lock.json, so its dependency tree is fixed before the job gets an OIDC token.
+      # ovsx comes from .github/ovsx/package-lock.json, so its dependency tree is fixed before the job gets an OIDC token.
       - name: Install ovsx
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --prefix .github/ovsx
 
       # Trusted publisher registered on open-vsx.org for aet-tum.artemis-scorpio, so no token is stored.
       - name: Publish to VSX Registry
         env:
           VERSION: ${{ inputs.version }}
-        run: npx --no-install ovsx publish --trusted-publishing "./artemis-scorpio-${VERSION}.vsix"
+        run: .github/ovsx/node_modules/.bin/ovsx publish --trusted-publishing "./artemis-scorpio-${VERSION}.vsix"
 
   verify:
     name: Verify

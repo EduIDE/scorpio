@@ -8,12 +8,12 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Breaking changes
 
-- `GRADLE_PREWARM_AUTO_CONFIRM` now defaults to `false`: the student is asked before pre-warming runs the repository's Gradle wrapper. Set it to `true` in the deployment to keep the old behavior. In data bridge mode the value is read from the pod environment, and a value delivered through the bridge is ignored (internal security audit 2026-11-16, SC-02)
-- Credentials in `GIT_URI` are no longer stored in the clone's `.git/config` or passed on the git command line; pushing needs a sign-in (internal security audit 2026-11-16, SC-03)
+- `GRADLE_PREWARM_AUTO_CONFIRM` now defaults to `false`: the student is asked before pre-warming runs the repository's Gradle wrapper. Set it to `true` in the deployment to keep the old behavior. In data bridge mode the value is read from the pod environment, and a value delivered through the bridge is ignored (internal security audit 2026-11-16, SC-02, [#223](https://github.com/EduIDE/scorpio/pull/223))
+- Credentials in `GIT_URI` are no longer stored in the clone's `.git/config` or passed on the git command line; pushing needs a sign-in (internal security audit 2026-11-16, SC-03, [#223](https://github.com/EduIDE/scorpio/pull/223))
 
 ### Fixes
 
-- **Security:** Scorpio never clears a workspace that has content. It clones only into an empty workspace; if the checkout does not match `GIT_URI` (renamed remote, changed origin, git error), the student gets a warning instead of losing files. A checkout is matched by host and path, and credentials are removed from its origin URL (internal security audit 2026-11-16, SC-01)
+- **Security:** Scorpio never clears a workspace that has content. It clones only into an empty workspace; if the checkout does not match `GIT_URI` (renamed remote, changed origin, git error), the student gets a warning instead of losing files. A checkout is matched by host and path, and credentials are removed from its origin URL (internal security audit 2026-11-16, SC-01, [#223](https://github.com/EduIDE/scorpio/pull/223))
 
 ## [2.2.0] - 2026-11-16
 
