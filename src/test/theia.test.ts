@@ -1,7 +1,13 @@
 import { vscodeStub } from "./vscode-stub";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { hostname, tmpdir } from "node:os";
@@ -40,6 +46,8 @@ beforeEach(() => {
   workspace = newDir();
   vscodeStub.workspace.workspaceFolders = [{ uri: { fsPath: workspace } }];
   vscodeStub.window.errors.length = 0;
+  vscodeStub.window.progress.length = 0;
+  vscodeStub.window.statusBar.length = 0;
   vscodeStub.window.warnings.length = 0;
   delete process.env.SCORPIO_TEMPLATES_DIR;
   Object.assign(theiaEnv, {
@@ -54,7 +62,10 @@ beforeEach(() => {
 });
 
 test("the injected identity is written to the global git config", async () => {
-  Object.assign(theiaEnv, { GIT_USER: "Ada Lovelace", GIT_MAIL: "ada@example.com" });
+  Object.assign(theiaEnv, {
+    GIT_USER: "Ada Lovelace",
+    GIT_MAIL: "ada@example.com",
+  });
 
   await initTheia();
 
@@ -99,7 +110,10 @@ test("a window finding the repository already cloned leaves the student's work a
 
 test("a window finding another window mid-clone leaves the workspace alone", async () => {
   theiaEnv.GIT_URI = newExerciseRepo();
-  writeFileSync(path.join(workspace, "in-progress"), "the other window's clone");
+  writeFileSync(
+    path.join(workspace, "in-progress"),
+    "the other window's clone",
+  );
   const lockPath = path.join(tmpdir(), "scorpio-workspace-clone.lock");
   mkdirSync(lockPath);
 
@@ -119,7 +133,9 @@ test("a failed clone is reported and the identity is still written", async () =>
 
   await initTheia();
 
-  assert.deepEqual(vscodeStub.window.errors, ["Could not clone the exercise repository"]);
+  assert.deepEqual(vscodeStub.window.errors, [
+    "Could not clone the exercise repository",
+  ]);
   assert.equal(globalConfig("user.name"), "Ada Lovelace");
 });
 
@@ -169,7 +185,10 @@ const NOT_CLONED_WARNING =
   "The exercise was not cloned because this workspace already contains files. Empty the workspace or start a new one to get the exercise.";
 
 async function assertWorkspaceKept() {
-  assert.equal(readFileSync(path.join(workspace, "Solution.java"), "utf8"), "student work");
+  assert.equal(
+    readFileSync(path.join(workspace, "Solution.java"), "utf8"),
+    "student work",
+  );
   assert.equal(existsSync(path.join(workspace, "README.md")), true);
   assert.deepEqual(vscodeStub.window.warnings, [NOT_CLONED_WARNING]);
   assert.deepEqual(vscodeStub.window.errors, []);
@@ -184,19 +203,29 @@ async function cloneThenEdit(edit: () => void) {
 }
 
 test("a workspace with a renamed remote is kept and the student is warned", async () => {
-  await cloneThenEdit(() => git(workspace, "remote", "rename", "origin", "upstream"));
+  await cloneThenEdit(() =>
+    git(workspace, "remote", "rename", "origin", "upstream"),
+  );
   await assertWorkspaceKept();
 });
 
 test("a workspace whose origin points to another repository is kept and the student is warned", async () => {
   await cloneThenEdit(() =>
-    git(workspace, "remote", "set-url", "origin", "https://example.org/fork/x.git"),
+    git(
+      workspace,
+      "remote",
+      "set-url",
+      "origin",
+      "https://example.org/fork/x.git",
+    ),
   );
   await assertWorkspaceKept();
 });
 
 test("a workspace that git cannot read is kept and the student is warned", async () => {
-  await cloneThenEdit(() => writeFileSync(path.join(workspace, ".git", "config"), "[broken"));
+  await cloneThenEdit(() =>
+    writeFileSync(path.join(workspace, ".git", "config"), "[broken"),
+  );
   await assertWorkspaceKept();
 });
 
@@ -206,7 +235,10 @@ test("a workspace with unrelated files and no repository is kept and the student
 
   await initTheia();
 
-  assert.equal(readFileSync(path.join(workspace, "Solution.java"), "utf8"), "student work");
+  assert.equal(
+    readFileSync(path.join(workspace, "Solution.java"), "utf8"),
+    "student work",
+  );
   assert.equal(existsSync(path.join(workspace, ".git")), false);
   assert.deepEqual(vscodeStub.window.warnings, [NOT_CLONED_WARNING]);
 });
@@ -239,7 +271,13 @@ test("scheme and credentials of the origin do not make the checkout a mismatch",
 test("reusing a checkout takes over the current GIT_URI including its credentials", async () => {
   theiaEnv.GIT_URI = newExerciseRepo();
   await initTheia();
-  git(workspace, "remote", "set-url", "origin", "https://oldtoken@example.org/x.git");
+  git(
+    workspace,
+    "remote",
+    "set-url",
+    "origin",
+    "https://oldtoken@example.org/x.git",
+  );
   theiaEnv.GIT_URI = new URL("https://newtoken:s3cret@EXAMPLE.org/x");
 
   await initTheia();
@@ -254,7 +292,10 @@ test("reusing a checkout takes over the current GIT_URI including its credential
 test("a workspace that was not cloned into is not prewarmed", async () => {
   theiaEnv.GIT_URI = newExerciseRepo();
   writeFileSync(path.join(workspace, "gradlew"), "#!/bin/sh\ntouch ran\n");
-  Object.assign(theiaEnv, { GRADLE_PREWARM: "daemon", GRADLE_PREWARM_AUTO_CONFIRM: true });
+  Object.assign(theiaEnv, {
+    GRADLE_PREWARM: "daemon",
+    GRADLE_PREWARM_AUTO_CONFIRM: true,
+  });
 
   await initTheia();
   await new Promise((resolve) => setTimeout(resolve, 500));
@@ -281,11 +322,17 @@ test("credentials in GIT_URI reach git through the credential helper, not the pr
   process.env.PATH = `${wrapperDir}${path.delimiter}${oldPath}`;
   const server = createServer((req, res) => {
     seen.push(req.headers.authorization);
-    if (req.headers.authorization !== "Basic " + Buffer.from("student:tok/en").toString("base64")) {
+    if (
+      req.headers.authorization !==
+      "Basic " + Buffer.from("student:tok/en").toString("base64")
+    ) {
       res.writeHead(401, { "WWW-Authenticate": 'Basic realm="git"' }).end();
       return;
     }
-    const file = path.resolve(bare, "." + decodeURIComponent(req.url!.split("?")[0]));
+    const file = path.resolve(
+      bare,
+      "." + decodeURIComponent(req.url!.split("?")[0]),
+    );
     if (!file.startsWith(bare + path.sep)) {
       res.writeHead(403).end();
       return;
@@ -312,10 +359,65 @@ test("credentials in GIT_URI reach git through the credential helper, not the pr
 
   assert.deepEqual(vscodeStub.window.errors, []);
   assert.equal(existsSync(path.join(workspace, "README.md")), true);
-  assert.equal(seen.includes("Basic " + Buffer.from("student:tok/en").toString("base64")), true);
-  assert.equal(git(workspace, "remote", "get-url", "origin"), theiaEnv.GIT_URI!.toString());
+  assert.equal(
+    seen.includes("Basic " + Buffer.from("student:tok/en").toString("base64")),
+    true,
+  );
+  assert.equal(
+    git(workspace, "remote", "get-url", "origin"),
+    theiaEnv.GIT_URI!.toString(),
+  );
   const args = readFileSync(argLog, "utf8");
-  const cloneCalls = args.split("\n").filter((line) => / clone /.test(` ${line} `));
+  const cloneCalls = args
+    .split("\n")
+    .filter((line) => / clone /.test(` ${line} `));
   assert.equal(cloneCalls.length, 1);
   assert.equal(/tok|student/.test(cloneCalls[0]), false);
+});
+
+test("the student sees the clone progress without any credential", async () => {
+  const repo = newExerciseRepo();
+  repo.username = "student";
+  repo.password = "SECRETTOKEN";
+  theiaEnv.GIT_URI = repo;
+
+  await initTheia();
+
+  const shown = vscodeStub.window.progress;
+  assert.equal(
+    shown.some((m) => m.startsWith("Cloning ")),
+    true,
+  );
+  assert.equal(
+    shown.some((m) => m.includes("SECRETTOKEN") || m.includes("student")),
+    false,
+  );
+});
+
+test("the student sees which template is applied", async () => {
+  const templates = newDir();
+  mkdirSync(path.join(templates, "java"));
+  writeFileSync(path.join(templates, "java", "template.json"), "{}");
+  process.env.SCORPIO_TEMPLATES_DIR = templates;
+  theiaEnv.TEMPLATE = "java";
+
+  await initTheia();
+
+  assert.deepEqual(vscodeStub.window.progress, ["Applying template java"]);
+});
+
+test("a window finding another window mid-clone tells the student", async () => {
+  theiaEnv.GIT_URI = newExerciseRepo();
+  const lockPath = path.join(tmpdir(), "scorpio-workspace-clone.lock");
+  mkdirSync(lockPath);
+
+  try {
+    await initTheia();
+  } finally {
+    execFileSync("rm", ["-rf", lockPath]);
+  }
+
+  assert.deepEqual(vscodeStub.window.statusBar, [
+    "Another window is cloning the exercise",
+  ]);
 });
