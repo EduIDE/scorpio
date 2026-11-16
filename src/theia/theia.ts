@@ -18,6 +18,7 @@ export let theiaEnv: TheiaEnv = {
   ARTEMIS_URL: undefined,
   GIT_URI: undefined,
   GIT_REF: undefined,
+  GIT_REF_INVALID: undefined,
   GIT_SOURCE: undefined,
   TEMPLATE: undefined,
   GIT_USER: undefined,
@@ -33,6 +34,11 @@ export async function loadTheiaEnv(): Promise<void> {
 
 export function getWorkspaceFolder() {
   return vscode.workspace.workspaceFolders?.at(0)?.uri;
+}
+
+// The ref comes from the environment, so keep markdown link syntax and long text out of a notification.
+function refForDisplay(ref: string): string {
+  return ref.replace(/[\[\]()`\r\n]/g, "").slice(0, 64);
 }
 
 function normalizeRepoUrl(raw: string): string {
@@ -110,9 +116,18 @@ export async function initTheia() {
             const content = await workspaceContent(workspacePath);
             if (content.length === 0) {
               report(`Cloning ${repoDisplayName(repoUri)}`);
+              if (theiaEnv.GIT_REF_INVALID) {
+                vscode.window.showWarningMessage(
+                  `GIT_REF "${refForDisplay(theiaEnv.GIT_REF_INVALID)}" is not a valid branch, tag or commit name. The default branch is checked out.`,
+                );
+              }
               await cloneByGivenURL(repoUri, workspacePath, {
                 mode: "workspace-root",
                 ref: theiaEnv.GIT_REF,
+                onRefFailed: (ref) =>
+                  vscode.window.showWarningMessage(
+                    `Could not check out "${refForDisplay(ref)}". The default branch is checked out instead.`,
+                  ),
               });
             } else {
               // Never clear files that might be the student's: the checkout may only look different (renamed remote, git error).

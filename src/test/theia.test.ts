@@ -48,6 +48,7 @@ beforeEach(() => {
     THEIA_FLAG: true,
     GIT_URI: undefined,
     GIT_REF: undefined,
+    GIT_REF_INVALID: undefined,
     GIT_SOURCE: undefined,
     TEMPLATE: undefined,
     GIT_USER: undefined,
@@ -373,4 +374,59 @@ test("a window finding another window mid-clone tells the student", async () => 
   }
 
   assert.deepEqual(vscodeStub.window.statusBar, ["Another window is cloning the exercise"]);
+});
+
+test("GIT_REF is checked out after a fresh clone", async () => {
+  const url = newExerciseRepo();
+  git(url.pathname, "branch", "feature");
+  git(url.pathname, "checkout", "-q", "feature");
+  writeFileSync(path.join(url.pathname, "feature.txt"), "x");
+  git(url.pathname, "add", ".");
+  git(url.pathname, "commit", "-qm", "feature");
+  git(url.pathname, "checkout", "-q", "-");
+  Object.assign(theiaEnv, { GIT_URI: url, GIT_REF: "feature" });
+
+  await initTheia();
+
+  assert.equal(git(workspace, "rev-parse", "--abbrev-ref", "HEAD"), "feature");
+  assert.equal(existsSync(path.join(workspace, "feature.txt")), true);
+});
+
+test("a reused workspace ignores GIT_REF", async () => {
+  const url = newExerciseRepo();
+  git(url.pathname, "branch", "feature");
+  theiaEnv.GIT_URI = url;
+  await initTheia();
+  const branch = git(workspace, "rev-parse", "--abbrev-ref", "HEAD");
+  theiaEnv.GIT_REF = "feature";
+
+  await initTheia();
+
+  assert.equal(git(workspace, "rev-parse", "--abbrev-ref", "HEAD"), branch);
+});
+
+test("an invalid GIT_REF tells the student the default branch is used", async () => {
+  Object.assign(theiaEnv, {
+    GIT_URI: newExerciseRepo(),
+    GIT_REF_INVALID: "--evil",
+  });
+
+  await initTheia();
+
+  assert.deepEqual(vscodeStub.window.warnings, [
+    'GIT_REF "--evil" is not a valid branch, tag or commit name. The default branch is checked out.',
+  ]);
+  assert.equal(existsSync(path.join(workspace, "README.md")), true);
+});
+
+test("a ref that cannot be checked out leaves the clone in place and warns the student", async () => {
+  Object.assign(theiaEnv, { GIT_URI: newExerciseRepo(), GIT_REF: "does-not-exist" });
+
+  await initTheia();
+
+  assert.equal(existsSync(path.join(workspace, "README.md")), true);
+  assert.deepEqual(vscodeStub.window.errors, []);
+  assert.deepEqual(vscodeStub.window.warnings, [
+    'Could not check out "does-not-exist". The default branch is checked out instead.',
+  ]);
 });

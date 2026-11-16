@@ -23,6 +23,8 @@ export type TheiaEnv = {
   ARTEMIS_URL: string | undefined;
   GIT_URI: URL | undefined;
   GIT_REF: string | undefined;
+  /** The GIT_REF value that was rejected, so the student can be told the default branch is used. */
+  GIT_REF_INVALID: string | undefined;
   GIT_SOURCE: GitSource | undefined;
   TEMPLATE: string | undefined;
   GIT_USER: string | undefined;
@@ -63,13 +65,16 @@ export function parseGradlePrewarm(value: string | undefined): GradlePrewarmLeve
   return DEFAULT_GRADLE_PREWARM;
 }
 
+/** Anything but `artemis` is untrusted; undefined only for an unset or empty value. */
 export function parseGitSource(value: string | undefined): GitSource | undefined {
   const source = value?.trim().toLowerCase();
   if (source === "artemis" || source === "external") {
     return source;
   }
   if (source) {
-    console.warn(`Ignoring unknown GIT_SOURCE "${value}"`);
+    // A typo must not make the source trusted: only an unset value keeps the behavior of older landing pages.
+    console.warn(`Unknown GIT_SOURCE "${value}", treating it as "external"`);
+    return "external";
   }
   return undefined;
 }
@@ -122,6 +127,7 @@ export function parseTheiaEnv(
     ARTEMIS_URL: env["ARTEMIS_URL"],
     GIT_URI: gitUriString ? new URL(gitUriString) : undefined,
     GIT_REF: parseGitRef(env["GIT_REF"]),
+    GIT_REF_INVALID: parseGitRef(env["GIT_REF"]) ? undefined : env["GIT_REF"]?.trim() || undefined,
     GIT_SOURCE: source,
     TEMPLATE: env["TEMPLATE"],
     GIT_USER: env["GIT_USER"],

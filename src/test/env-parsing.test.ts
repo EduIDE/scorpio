@@ -69,6 +69,7 @@ test("an Artemis launch keeps its values", () => {
       ARTEMIS_URL: "https://artemis.example.org",
       GIT_URI: "https://artemis.example.org/git/EX/ex-student.git",
       GIT_REF: undefined,
+      GIT_REF_INVALID: undefined,
       GIT_SOURCE: undefined,
       TEMPLATE: undefined,
       GIT_USER: "student",
@@ -104,7 +105,9 @@ test("GRADLE_PREWARM_AUTO_CONFIRM defaults to false and only an explicit true tu
 test("GIT_SOURCE accepts artemis and external and ignores anything else", () => {
   assert.equal(parseTheiaEnv({ GIT_SOURCE: " External " }).GIT_SOURCE, "external");
   assert.equal(parseTheiaEnv({ GIT_SOURCE: "artemis" }).GIT_SOURCE, "artemis");
-  assert.equal(parseTheiaEnv({ GIT_SOURCE: "github" }).GIT_SOURCE, undefined);
+  // A typo or an unknown value is untrusted, only an unset one keeps the old behavior.
+  assert.equal(parseTheiaEnv({ GIT_SOURCE: "github" }).GIT_SOURCE, "external");
+  assert.equal(parseTheiaEnv({ GIT_SOURCE: "  " }).GIT_SOURCE, undefined);
   assert.equal(parseTheiaEnv({}).GIT_SOURCE, undefined);
 });
 
@@ -113,6 +116,7 @@ test("an external source is always asked before Gradle prewarming, whatever the 
     parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: "true", ...extra }).GRADLE_PREWARM_AUTO_CONFIRM;
 
   assert.equal(confirm({ GIT_SOURCE: "external" }), false);
+  assert.equal(confirm({ GIT_SOURCE: "github" }), false);
   assert.equal(confirm({ GIT_SOURCE: "artemis" }), true);
   assert.equal(confirm({}), true);
   // The trust decision is not inferred from ARTEMIS_URL or the host of GIT_URI.
@@ -127,8 +131,27 @@ test("GIT_REF accepts branch, tag and commit names", () => {
 });
 
 test("GIT_REF rejects options, ranges and other invalid names", () => {
-  for (const ref of ["", "  ", "--upload-pack=evil", "-b", "a..b", "a b", "HEAD~1", "x^", "a:b", "x@{1}", "a\\b"]) {
+  for (const ref of [
+    "",
+    "  ",
+    "--upload-pack=evil",
+    "-b",
+    "a..b",
+    "a b",
+    "HEAD~1",
+    "x^",
+    "a:b",
+    "x@{1}",
+    "a\\b",
+  ]) {
     assert.equal(parseGitRef(ref), undefined, JSON.stringify(ref));
   }
   assert.equal(parseGitRef("x".repeat(256)), undefined);
+});
+
+test("a rejected GIT_REF is kept for the notification", () => {
+  assert.equal(parseTheiaEnv({ GIT_REF: "--evil" }).GIT_REF_INVALID, "--evil");
+  assert.equal(parseTheiaEnv({ GIT_REF: "--evil" }).GIT_REF, undefined);
+  assert.equal(parseTheiaEnv({ GIT_REF: "main" }).GIT_REF_INVALID, undefined);
+  assert.equal(parseTheiaEnv({}).GIT_REF_INVALID, undefined);
 });
