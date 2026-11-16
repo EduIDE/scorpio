@@ -32,9 +32,9 @@ export type GradlePrewarmEffects = {
 
 /**
  * Asks the student whether the repository's Gradle wrapper may be executed to prewarm the
- * build. Used only when GRADLE_PREWARM_AUTO_CONFIRM is false. The prompt is non-modal and
+ * build. Used unless GRADLE_PREWARM_AUTO_CONFIRM is true. The prompt is non-modal and
  * defaults to "no": if the student ignores it nothing runs, removing the silent code-execution
- * property for deployments that do not trust exercise templates.
+ * property for deployments that have not opted in to auto-confirm.
  */
 async function promptPrewarmConfirmation(_projectPath: string): Promise<boolean> {
   const choice = await vscode.window.showWarningMessage(
@@ -72,10 +72,10 @@ export const defaultGradlePrewarmEffects: GradlePrewarmEffects = {
  * Security: `./gradlew` and the bundled Gradle wrapper jar are repository-controlled, so a
  * tampered exercise template could run arbitrary code during prewarm. The behavior is governed
  * by `autoConfirm` (the GRADLE_PREWARM_AUTO_CONFIRM env var):
- * - `true` (default): the prewarm runs automatically. Appropriate when exercise templates are
- *   provisioned by a trusted platform, where the long first build matters more than the risk.
- * - `false`: the student must explicitly confirm before the wrapper runs, and confirmation
- *   defaults to "no". The safe choice when templates are not trusted.
+ * - `false` (default): the student must explicitly confirm before the wrapper runs, and
+ *   confirmation defaults to "no".
+ * - `true`: the prewarm runs automatically. Only for deployments that trust their exercise
+ *   templates, where the long first build matters more than the risk.
  *
  * Silently skips (no prompt, no build) if:
  * - Prewarming is disabled (`level` is "off")
@@ -85,7 +85,7 @@ export const defaultGradlePrewarmEffects: GradlePrewarmEffects = {
 export async function warmupGradleDaemon(
   projectPath: string,
   level: GradlePrewarmLevel = "daemon",
-  autoConfirm = true,
+  autoConfirm = false,
   effects: GradlePrewarmEffects = defaultGradlePrewarmEffects,
 ): Promise<void> {
   if (level === "off" || process.platform === "win32") {

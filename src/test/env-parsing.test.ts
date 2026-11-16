@@ -72,7 +72,7 @@ test("an Artemis launch keeps its values", () => {
       GIT_USER: "student",
       GIT_MAIL: "student@example.org",
       GRADLE_PREWARM: "deps",
-      GRADLE_PREWARM_AUTO_CONFIRM: true,
+      GRADLE_PREWARM_AUTO_CONFIRM: false,
     },
   );
 });
@@ -83,10 +83,18 @@ test("GRADLE_PREWARM falls back to the default for missing or unknown values", (
   assert.equal(parseTheiaEnv({ GRADLE_PREWARM: "turbo" }).GRADLE_PREWARM, "daemon");
 });
 
-test("GRADLE_PREWARM_AUTO_CONFIRM defaults to true and only an explicit false turns it off", () => {
-  assert.equal(parseTheiaEnv({}).GRADLE_PREWARM_AUTO_CONFIRM, true);
+test("GRADLE_PREWARM_AUTO_CONFIRM defaults to false and only an explicit true turns it on", () => {
+  assert.equal(parseTheiaEnv({}).GRADLE_PREWARM_AUTO_CONFIRM, false);
   assert.equal(
-    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: " False " }).GRADLE_PREWARM_AUTO_CONFIRM,
+    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: "" }).GRADLE_PREWARM_AUTO_CONFIRM,
     false,
+  );
+  assert.equal(
+    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: "yes" }).GRADLE_PREWARM_AUTO_CONFIRM,
+    false,
+  );
+  assert.equal(
+    parseTheiaEnv({ GRADLE_PREWARM_AUTO_CONFIRM: " True " }).GRADLE_PREWARM_AUTO_CONFIRM,
+    true,
   );
 });

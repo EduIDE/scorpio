@@ -16,11 +16,13 @@ Scorpio reads the following variables from the Theia environment:
 | `GIT_MAIL`                    | No       | Git email (falls back to `<username>@artemis-theia.de`)                                          |
 | `THEIA`                       | No       | Explicit Theia flag (auto-detected via DataBridge)                                               |
 | `GRADLE_PREWARM`              | No       | Gradle pre-warm level: `off`, `daemon` (default), `deps`, or `full`                              |
-| `GRADLE_PREWARM_AUTO_CONFIRM` | No       | `false` asks the student before pre-warming runs the repository's Gradle wrapper. Default `true` |
+| `GRADLE_PREWARM_AUTO_CONFIRM` | No       | `true` runs pre-warming without asking the student. Default `false`: the student confirms first. Read from the pod environment only, never from the data bridge |
 
 ## Startup Behavior
 
 - Only one browser window clones at a time. The windows share a lock in the temp directory, and a lock older than 10 minutes counts as abandoned. A window that finds the repository already cloned skips the clone.
+- Scorpio only clones into an empty workspace or one that already holds the repository (same host and path). If the workspace holds anything else, for example after the student renamed or changed the remote, it is left untouched and the student sees a warning.
+- Credentials in `GIT_URI` are handed to the one `git clone` through a temporary credential helper and are not kept in `.git/config`, so the student has to sign in again to push.
 - A failed clone is reported to the student. Scorpio still sets the git identity and keeps starting.
 - A window without `GIT_USER` does not replace an existing git identity with the pod hostname.
 

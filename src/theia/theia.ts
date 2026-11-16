@@ -3,8 +3,12 @@ import { GitConfigScope, simpleGit } from "simple-git";
 import { hostname } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
-import { cloneByGivenURL, withCloneLock } from "../participation/cloning.service";
-import { applyTemplate, DEFAULT_TEMPLATES_DIR } from "../participation/template.service";
+import { cloneByGivenURL, splitCredentials, withCloneLock } from "../participation/cloning.service";
+import {
+  applyTemplate,
+  DEFAULT_TEMPLATES_DIR,
+  isWorkspaceEmpty,
+} from "../participation/template.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
 
@@ -16,7 +20,7 @@ export let theiaEnv: TheiaEnv = {
   GIT_USER: undefined,
   GIT_MAIL: undefined,
   GRADLE_PREWARM: DEFAULT_GRADLE_PREWARM,
-  GRADLE_PREWARM_AUTO_CONFIRM: true,
+  GRADLE_PREWARM_AUTO_CONFIRM: false,
 };
 
 export async function loadTheiaEnv(): Promise<void> {
@@ -31,15 +35,8 @@ export function getWorkspaceFolder() {
 function normalizeRepoUrl(raw: string): string {
   try {
     const url = new URL(raw);
-    url.username = "";
-    url.password = "";
-    if (
-      (url.protocol === "https:" && url.port === "443") ||
-      (url.protocol === "http:" && url.port === "80")
-    ) {
-      url.port = "";
-    }
-    let normalized = url.origin.toLowerCase() + url.pathname;
+    // Host and path only: a changed scheme (ssh, http) or default port is still the same repository.
+    let normalized = url.host.toLowerCase() + url.pathname;
     normalized = normalized.replace(/\.git\/?$/, "");
     normalized = normalized.replace(/\/+$/, "");
     return normalized;
@@ -63,10 +60,20 @@ async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promi
     if (!origin?.refs.fetch) {
       return false;
     }
-    return normalizeRepoUrl(origin.refs.fetch) === normalizeRepoUrl(targetUri.toString());
+    if (normalizeRepoUrl(origin.refs.fetch) !== normalizeRepoUrl(targetUri.toString())) {
+      return false;
+    }
   } catch {
     return false;
   }
+
+  // Older clones may hold a token in the origin URL; rewrite it without. Not worth failing the start over.
+  try {
+    await simpleGit(workspacePath).remote(["set-url", "origin", splitCredentials(targetUri).url]);
+  } catch (e: any) {
+    console.warn(`Could not refresh the origin URL: ${e.message}`);
+  }
+  return true;
 }
 
 export async function initTheia() {
@@ -88,8 +95,14 @@ export async function initTheia() {
       const ranAlone = await withCloneLock(async () => {
         if (await isRepoAlreadyCloned(workspacePath, repoUri)) {
           console.log("Repository already present, skipping auto-clone");
-        } else {
+        } else if (await isWorkspaceEmpty(workspacePath)) {
           await cloneByGivenURL(repoUri, workspacePath, { mode: "workspace-root" });
+        } else {
+          // Never clear files that might be the student's: the checkout may only look different (renamed remote, git error).
+          const message =
+            "This workspace already contains files that do not match the exercise repository, so the exercise was not cloned.";
+          console.warn(message);
+          vscode.window.showWarningMessage(message);
         }
       });
       if (!ranAlone) {

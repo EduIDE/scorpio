@@ -36,7 +36,7 @@ async function resolveTemplateDir(id: string, templatesDir: string): Promise<str
  * A workspace counts as empty when it only holds what Theia puts there itself, the same entries
  * a clone preserves (.theia, persisted, lost+found, .vscode/settings.json).
  */
-async function isWorkspaceEmpty(workspacePath: string): Promise<boolean> {
+export async function isWorkspaceEmpty(workspacePath: string): Promise<boolean> {
   const preserved = new Set(THEIA_PRESERVED_PATHS.map((p) => p.split("/")[0]));
   for (const entry of await fs.readdir(workspacePath)) {
     if (!preserved.has(entry)) {

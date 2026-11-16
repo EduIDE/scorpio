@@ -54,12 +54,12 @@ export function parseGradlePrewarm(value: string | undefined): GradlePrewarmLeve
 }
 
 /**
- * Prewarming runs the Gradle wrapper of the cloned repository. Exercise templates come from a
- * trusted Artemis by default, so it runs without asking. Set GRADLE_PREWARM_AUTO_CONFIRM to false
- * where they are not trusted: the student then has to confirm first.
+ * Prewarming runs the Gradle wrapper of the cloned repository, which is code the student did not write.
+ * It asks the student first unless the deployment explicitly sets GRADLE_PREWARM_AUTO_CONFIRM to true,
+ * for platforms that trust their exercise templates.
  */
 export function parseGradlePrewarmAutoConfirm(value: string | undefined): boolean {
-  return value?.trim().toLowerCase() !== "false";
+  return value?.trim().toLowerCase() === "true";
 }
 
 /**
