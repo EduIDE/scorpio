@@ -40,9 +40,7 @@ export const vscodeStub = {
 const nodeModule = require("module");
 const originalLoad = nodeModule._load;
 nodeModule._load = function (request: string, ...rest: unknown[]) {
-  return request === "vscode"
-    ? vscodeStub
-    : originalLoad.call(this, request, ...rest);
+  return request === "vscode" ? vscodeStub : originalLoad.call(this, request, ...rest);
 };
 
 // Keep the clone lock and clones away from anything else on this machine.

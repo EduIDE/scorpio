@@ -36,9 +36,7 @@ export type GradlePrewarmEffects = {
  * defaults to "no": if the student ignores it nothing runs, removing the silent code-execution
  * property for deployments that have not opted in to auto-confirm.
  */
-async function promptPrewarmConfirmation(
-  _projectPath: string,
-): Promise<boolean> {
+async function promptPrewarmConfirmation(_projectPath: string): Promise<boolean> {
   const choice = await vscode.window.showWarningMessage(
     "Scorpio can pre-build this exercise with its Gradle wrapper to speed up your first build. " +
       "This runs code from the cloned repository. Only continue for exercises you trust.",
@@ -47,11 +45,7 @@ async function promptPrewarmConfirmation(
   return choice === "Pre-build now";
 }
 
-function spawnGradle(
-  projectPath: string,
-  args: string[],
-  level: GradlePrewarmLevel,
-): void {
+function spawnGradle(projectPath: string, args: string[], level: GradlePrewarmLevel): void {
   const child = spawn("./gradlew", args, {
     cwd: projectPath,
     detached: true,
@@ -103,9 +97,7 @@ export async function warmupGradleDaemon(
     return;
   }
 
-  const confirmed = autoConfirm
-    ? true
-    : await effects.confirm(projectPath).catch(() => false);
+  const confirmed = autoConfirm ? true : await effects.confirm(projectPath).catch(() => false);
   if (!confirmed) {
     return;
   }
@@ -114,10 +106,7 @@ export async function warmupGradleDaemon(
     effects.makeExecutable(gradlewPath);
     effects.run(projectPath, PREWARM_ARGS[level], level);
     // The build runs detached, so a short status bar hint is enough.
-    vscode.window.setStatusBarMessage(
-      "Preparing Gradle in the background",
-      10000,
-    );
+    vscode.window.setStatusBarMessage("Preparing Gradle in the background", 10000);
   } catch (error: any) {
     console.warn(`Gradle prewarm (${level}) failed: ${error.message}`);
   }

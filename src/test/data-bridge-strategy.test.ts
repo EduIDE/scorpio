@@ -37,7 +37,5 @@ test("the student is told that scorpio waits for the exercise details", async ()
 
   await loadWithBridge({ GIT_URI: "https://github.com/example/repo" });
 
-  assert.deepEqual(vscodeStub.window.progress, [
-    "Waiting for your exercise details",
-  ]);
+  assert.deepEqual(vscodeStub.window.progress, ["Waiting for your exercise details"]);
 });

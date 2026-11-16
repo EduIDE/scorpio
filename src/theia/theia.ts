@@ -3,11 +3,7 @@ import { GitConfigScope, simpleGit } from "simple-git";
 import { hostname } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
-import {
-  cloneByGivenURL,
-  setOrigin,
-  withCloneLock,
-} from "../participation/cloning.service";
+import { cloneByGivenURL, setOrigin, withCloneLock } from "../participation/cloning.service";
 import {
   applyTemplate,
   DEFAULT_TEMPLATES_DIR,
@@ -15,11 +11,7 @@ import {
 } from "../participation/template.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
 import { withWorkspaceProgress } from "./progress";
-import {
-  createTheiaEnvStrategy,
-  DEFAULT_GRADLE_PREWARM,
-  TheiaEnv,
-} from "./env-strategy";
+import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
 
 export let theiaEnv: TheiaEnv = {
   THEIA_FLAG: false,
@@ -54,10 +46,7 @@ function normalizeRepoUrl(raw: string): string {
   }
 }
 
-async function isRepoAlreadyCloned(
-  workspacePath: string,
-  targetUri: URL,
-): Promise<boolean> {
+async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promise<boolean> {
   const gitPath = path.join(workspacePath, ".git");
   try {
     await fs.stat(gitPath);
@@ -72,10 +61,7 @@ async function isRepoAlreadyCloned(
     if (!origin?.refs.fetch) {
       return false;
     }
-    if (
-      normalizeRepoUrl(origin.refs.fetch) !==
-      normalizeRepoUrl(targetUri.toString())
-    ) {
+    if (normalizeRepoUrl(origin.refs.fetch) !== normalizeRepoUrl(targetUri.toString())) {
       return false;
     }
   } catch {
@@ -98,19 +84,13 @@ function repoDisplayName(repoUri: URL): string {
 
 export async function initTheia() {
   if (theiaEnv.GIT_URI) {
-    vscode.commands.executeCommand(
-      "setContext",
-      "scorpio.theia.givenExercise",
-      true,
-    );
+    vscode.commands.executeCommand("setContext", "scorpio.theia.givenExercise", true);
   }
 
   if (theiaEnv.GIT_URI) {
     const workspaceFolderUri = getWorkspaceFolder();
     if (!workspaceFolderUri) {
-      vscode.window.showErrorMessage(
-        "No workspace folder available to clone repository",
-      );
+      vscode.window.showErrorMessage("No workspace folder available to clone repository");
       return;
     }
 
@@ -145,21 +125,14 @@ export async function initTheia() {
           }
         });
         if (!ranAlone) {
-          console.log(
-            "Another window is cloning the repository, skipping auto-clone",
-          );
+          console.log("Another window is cloning the repository, skipping auto-clone");
           // The lock does not wait, so this window carries on while the other one finishes.
-          vscode.window.setStatusBarMessage(
-            "Another window is cloning the exercise",
-            10000,
-          );
+          vscode.window.setStatusBarMessage("Another window is cloning the exercise", 10000);
         }
       } catch (e: any) {
         // Still write the git identity below, or a clone retried by hand commits as the wrong user.
         console.error(e.message);
-        vscode.window.showErrorMessage(
-          "Could not clone the exercise repository",
-        );
+        vscode.window.showErrorMessage("Could not clone the exercise repository");
       }
     });
 
@@ -179,18 +152,12 @@ export async function initTheia() {
   if (!theiaEnv.GIT_URI && theiaEnv.TEMPLATE) {
     const workspaceFolderUri = getWorkspaceFolder();
     if (!workspaceFolderUri) {
-      vscode.window.showErrorMessage(
-        "No workspace folder available to copy the template into",
-      );
+      vscode.window.showErrorMessage("No workspace folder available to copy the template into");
       return;
     }
-    const templatesDir =
-      process.env["SCORPIO_TEMPLATES_DIR"] || DEFAULT_TEMPLATES_DIR;
+    const templatesDir = process.env["SCORPIO_TEMPLATES_DIR"] || DEFAULT_TEMPLATES_DIR;
     // The id comes from the environment, so keep markdown link syntax and long text out of the notification.
-    const shownId = theiaEnv.TEMPLATE.replace(/[\[\]()`\r\n]/g, "").slice(
-      0,
-      64,
-    );
+    const shownId = theiaEnv.TEMPLATE.replace(/[\[\]()`\r\n]/g, "").slice(0, 64);
     const template = theiaEnv.TEMPLATE;
     try {
       const result = await withWorkspaceProgress((report) => {
@@ -204,27 +171,18 @@ export async function initTheia() {
       }
     } catch (e: any) {
       console.error(e.message);
-      vscode.window.showErrorMessage(
-        "Could not copy the template into the workspace",
-      );
+      vscode.window.showErrorMessage("Could not copy the template into the workspace");
     }
 
     // Template code comes from the image or the student's own workspace, so no prompt.
-    void warmupGradleDaemon(
-      workspaceFolderUri.fsPath,
-      theiaEnv.GRADLE_PREWARM,
-      true,
-    );
+    void warmupGradleDaemon(workspaceFolderUri.fsPath, theiaEnv.GRADLE_PREWARM, true);
   }
 
   if (theiaEnv.THEIA_FLAG) {
     try {
       const git = simpleGit();
       // A second window's data bridge can stay empty, so its fallback must not replace the identity.
-      if (
-        !theiaEnv.GIT_USER &&
-        (await git.getConfig("user.name", GitConfigScope.global)).value
-      ) {
+      if (!theiaEnv.GIT_USER && (await git.getConfig("user.name", GitConfigScope.global)).value) {
         return;
       }
       const hostnameConst = hostname();
@@ -235,18 +193,8 @@ export async function initTheia() {
           ? theiaEnv.GIT_USER + "@artemis-theia.de"
           : hostnameConst + "@artemis-theia.de";
 
-      await git.addConfig(
-        "user.name",
-        theiaEnv.GIT_USER,
-        undefined,
-        GitConfigScope.global,
-      );
-      await git.addConfig(
-        "user.email",
-        theiaEnv.GIT_MAIL,
-        undefined,
-        GitConfigScope.global,
-      );
+      await git.addConfig("user.name", theiaEnv.GIT_USER, undefined, GitConfigScope.global);
+      await git.addConfig("user.email", theiaEnv.GIT_MAIL, undefined, GitConfigScope.global);
     } catch (e: any) {
       console.error(`Error setting git config: ${e.message}`);
     }

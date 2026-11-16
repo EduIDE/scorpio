@@ -2,18 +2,9 @@ import * as vscode from "vscode";
 import { exec } from "child_process";
 
 import { withWorkspaceProgress } from "./progress";
-import {
-  ENV_KEYS,
-  isDataBridgeEnvComplete,
-  parseTheiaEnv,
-  type TheiaEnv,
-} from "./env-parsing";
+import { ENV_KEYS, isDataBridgeEnvComplete, parseTheiaEnv, type TheiaEnv } from "./env-parsing";
 
-export {
-  DEFAULT_GRADLE_PREWARM,
-  type GradlePrewarmLevel,
-  type TheiaEnv,
-} from "./env-parsing";
+export { DEFAULT_GRADLE_PREWARM, type GradlePrewarmLevel, type TheiaEnv } from "./env-parsing";
 
 export interface TheiaEnvStrategy {
   load(): Promise<TheiaEnv>;
@@ -49,9 +40,7 @@ export class ProcessEnvStrategy implements TheiaEnvStrategy {
   async load(): Promise<TheiaEnv> {
     const env: Record<string, string | undefined> = Object.fromEntries(
       await Promise.all(
-        ENV_KEYS.map((key) =>
-          getEnvVariable(key).then((value) => [key, value] as const),
-        ),
+        ENV_KEYS.map((key) => getEnvVariable(key).then((value) => [key, value] as const)),
       ),
     );
     return parseTheiaEnv(env);
@@ -71,9 +60,7 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
   private outputChannel: vscode.OutputChannel;
 
   constructor() {
-    this.outputChannel = vscode.window.createOutputChannel(
-      "Scorpio Environment Variables",
-    );
+    this.outputChannel = vscode.window.createOutputChannel("Scorpio Environment Variables");
   }
 
   async load(): Promise<TheiaEnv> {
@@ -97,9 +84,7 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
       await dataBridgeExt.activate();
     }
 
-    this.outputChannel.appendLine(
-      "Data bridge active, polling for environment variables...",
-    );
+    this.outputChannel.appendLine("Data bridge active, polling for environment variables...");
     return withWorkspaceProgress((report) => {
       report("Waiting for your exercise details");
       return this.pollForEnvironmentVariables();
@@ -115,15 +100,10 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
       // The operator delivers a session's variables in one injection, so the first one
       // to arrive means the rest are there too (see isDataBridgeEnvComplete).
       if (isDataBridgeEnvComplete(env)) {
-        this.outputChannel.appendLine(
-          "Environment variables received from bridge",
-        );
+        this.outputChannel.appendLine("Environment variables received from bridge");
         // Only the deployment may turn auto-confirm on, never a value delivered through the bridge.
         const podEnv = await getEnvVariable("GRADLE_PREWARM_AUTO_CONFIRM");
-        return parseTheiaEnv(
-          { ...env, GRADLE_PREWARM_AUTO_CONFIRM: podEnv },
-          true,
-        );
+        return parseTheiaEnv({ ...env, GRADLE_PREWARM_AUTO_CONFIRM: podEnv }, true);
       }
 
       this.outputChannel.appendLine(
@@ -138,18 +118,15 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
     return new ProcessEnvStrategy().load();
   }
 
-  private async fetchEnvironmentVariables(): Promise<
-    Record<string, string | undefined>
-  > {
+  private async fetchEnvironmentVariables(): Promise<Record<string, string | undefined>> {
     try {
-      const result = await vscode.commands.executeCommand<
-        Record<string, string>
-      >(DataBridgeStrategy.COMMAND, [...ENV_KEYS]);
+      const result = await vscode.commands.executeCommand<Record<string, string>>(
+        DataBridgeStrategy.COMMAND,
+        [...ENV_KEYS],
+      );
       return result ?? {};
     } catch (error) {
-      this.outputChannel.appendLine(
-        `Error fetching environment variables: ${error}`,
-      );
+      this.outputChannel.appendLine(`Error fetching environment variables: ${error}`);
       return {};
     }
   }
