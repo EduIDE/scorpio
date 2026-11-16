@@ -10,6 +10,7 @@ import {
   workspaceContent,
 } from "../participation/template.service";
 import { warmupGradleDaemon } from "../participation/gradle.service";
+import { withWorkspaceProgress } from "./progress";
 import { createTheiaEnvStrategy, DEFAULT_GRADLE_PREWARM, TheiaEnv } from "./env-strategy";
 
 export let theiaEnv: TheiaEnv = {
@@ -76,6 +77,11 @@ async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promi
   return true;
 }
 
+// Host and path only, so no credential from GIT_URI can reach a message.
+function repoDisplayName(repoUri: URL): string {
+  return path.basename(repoUri.pathname, ".git") || repoUri.host;
+}
+
 export async function initTheia() {
   if (theiaEnv.GIT_URI) {
     vscode.commands.executeCommand("setContext", "scorpio.theia.givenExercise", true);
@@ -91,36 +97,44 @@ export async function initTheia() {
     const repoUri = theiaEnv.GIT_URI;
     const workspacePath = workspaceFolderUri.fsPath;
     let skipPrewarm = false;
-    try {
-      // Check inside the lock: the window that held it may have just finished the same clone.
-      const ranAlone = await withCloneLock(async () => {
-        if (await isRepoAlreadyCloned(workspacePath, repoUri)) {
-          console.log("Repository already present, skipping auto-clone");
-        } else {
-          const content = await workspaceContent(workspacePath);
-          if (content.length === 0) {
-            await cloneByGivenURL(repoUri, workspacePath, { mode: "workspace-root" });
+    await withWorkspaceProgress(async (report) => {
+      report("Checking your workspace");
+      try {
+        // Check inside the lock: the window that held it may have just finished the same clone.
+        const ranAlone = await withCloneLock(async () => {
+          if (await isRepoAlreadyCloned(workspacePath, repoUri)) {
+            console.log("Repository already present, skipping auto-clone");
           } else {
-            // Never clear files that might be the student's: the checkout may only look different (renamed remote, git error).
-            skipPrewarm = true;
-            console.warn(
-              `Exercise not cloned, the workspace already contains: ${content.join(", ")}`,
-            );
-            vscode.window.showWarningMessage(
-              "The exercise was not cloned because this workspace already contains files. " +
-                "Empty the workspace or start a new one to get the exercise.",
-            );
+            const content = await workspaceContent(workspacePath);
+            if (content.length === 0) {
+              report(`Cloning ${repoDisplayName(repoUri)}`);
+              await cloneByGivenURL(repoUri, workspacePath, {
+                mode: "workspace-root",
+              });
+            } else {
+              // Never clear files that might be the student's: the checkout may only look different (renamed remote, git error).
+              skipPrewarm = true;
+              console.warn(
+                `Exercise not cloned, the workspace already contains: ${content.join(", ")}`,
+              );
+              vscode.window.showWarningMessage(
+                "The exercise was not cloned because this workspace already contains files. " +
+                  "Empty the workspace or start a new one to get the exercise.",
+              );
+            }
           }
+        });
+        if (!ranAlone) {
+          console.log("Another window is cloning the repository, skipping auto-clone");
+          // The lock does not wait, so this window carries on while the other one finishes.
+          vscode.window.setStatusBarMessage("Another window is cloning the exercise", 10000);
         }
-      });
-      if (!ranAlone) {
-        console.log("Another window is cloning the repository, skipping auto-clone");
+      } catch (e: any) {
+        // Still write the git identity below, or a clone retried by hand commits as the wrong user.
+        console.error(e.message);
+        vscode.window.showErrorMessage("Could not clone the exercise repository");
       }
-    } catch (e: any) {
-      // Still write the git identity below, or a clone retried by hand commits as the wrong user.
-      console.error(e.message);
-      vscode.window.showErrorMessage("Could not clone the exercise repository");
-    }
+    });
 
     // Pre-warm Gradle in the background every session so the student's build is faster,
     // even on restarts where the repo is already present but the daemon is cold.
@@ -142,15 +156,15 @@ export async function initTheia() {
       return;
     }
     const templatesDir = process.env["SCORPIO_TEMPLATES_DIR"] || DEFAULT_TEMPLATES_DIR;
+    // The id comes from the environment, so keep markdown link syntax and long text out of the notification.
+    const shownId = theiaEnv.TEMPLATE.replace(/[\[\]()`\r\n]/g, "").slice(0, 64);
+    const template = theiaEnv.TEMPLATE;
     try {
-      const result = await applyTemplate(
-        theiaEnv.TEMPLATE,
-        workspaceFolderUri.fsPath,
-        templatesDir,
-      );
+      const result = await withWorkspaceProgress((report) => {
+        report(`Applying template ${shownId}`);
+        return applyTemplate(template, workspaceFolderUri.fsPath, templatesDir);
+      });
       if (result === "not-found") {
-        // The id comes from the environment, so keep markdown link syntax and long text out of the notification.
-        const shownId = theiaEnv.TEMPLATE.replace(/[\[\]()`\r\n]/g, "").slice(0, 64);
         const message = `Template \`${shownId}\` not found, starting with an empty workspace`;
         console.warn(message);
         vscode.window.showWarningMessage(message);

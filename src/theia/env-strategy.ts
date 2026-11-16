@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { exec } from "child_process";
 
+import { withWorkspaceProgress } from "./progress";
 import { ENV_KEYS, isDataBridgeEnvComplete, parseTheiaEnv, type TheiaEnv } from "./env-parsing";
 
 export { DEFAULT_GRADLE_PREWARM, type GradlePrewarmLevel, type TheiaEnv } from "./env-parsing";
@@ -84,7 +85,10 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
     }
 
     this.outputChannel.appendLine("Data bridge active, polling for environment variables...");
-    return this.pollForEnvironmentVariables();
+    return withWorkspaceProgress((report) => {
+      report("Waiting for your exercise details");
+      return this.pollForEnvironmentVariables();
+    });
   }
 
   private async pollForEnvironmentVariables(): Promise<TheiaEnv> {

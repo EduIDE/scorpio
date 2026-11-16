@@ -105,6 +105,8 @@ export async function warmupGradleDaemon(
   try {
     effects.makeExecutable(gradlewPath);
     effects.run(projectPath, PREWARM_ARGS[level], level);
+    // The build runs detached, so a short status bar hint is enough.
+    vscode.window.setStatusBarMessage("Preparing Gradle in the background", 10000);
   } catch (error: any) {
     console.warn(`Gradle prewarm (${level}) failed: ${error.message}`);
   }
