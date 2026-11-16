@@ -6,6 +6,7 @@ import * as path from "path";
 export const vscodeStub = {
   workspace: { workspaceFolders: undefined as { uri: { fsPath: string } }[] | undefined },
   window: {
+    createOutputChannel: () => ({ appendLine: () => {} }),
     errors: [] as string[],
     warnings: [] as string[],
     showWarningMessage(message: string) {
@@ -15,7 +16,8 @@ export const vscodeStub = {
       this.errors.push(message);
     },
   },
-  commands: { executeCommand: () => undefined },
+  commands: { executeCommand: (..._args: unknown[]): unknown => undefined },
+  extensions: { getExtension: (_id: string): unknown => undefined },
 };
 
 const nodeModule = require("module");

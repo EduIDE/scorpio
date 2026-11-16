@@ -97,7 +97,9 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
       // to arrive means the rest are there too (see isDataBridgeEnvComplete).
       if (isDataBridgeEnvComplete(env)) {
         this.outputChannel.appendLine("Environment variables received from bridge");
-        return parseTheiaEnv(env, true);
+        // Only the deployment may turn auto-confirm on, never a value delivered through the bridge.
+        const podEnv = await getEnvVariable("GRADLE_PREWARM_AUTO_CONFIRM");
+        return parseTheiaEnv({ ...env, GRADLE_PREWARM_AUTO_CONFIRM: podEnv }, true);
       }
 
       this.outputChannel.appendLine(

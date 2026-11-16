@@ -92,9 +92,15 @@ jobs:
         with:
           node-version: 20
 
+      # ovsx comes from .github/ovsx/package-lock.json, so the installed dependency tree is pinned (the job still holds id-token: write).
+      - name: Install ovsx
+        run: npm ci --ignore-scripts --prefix .github/ovsx
+
       # Trusted publisher registered on open-vsx.org for aet-tum.artemis-scorpio, so no token is stored.
       - name: Publish to VSX Registry
-        run: npx ovsx@1.3.0 publish --trusted-publishing "./artemis-scorpio-${{ inputs.version }}.vsix"
+        env:
+          VERSION: ${{ inputs.version }}
+        run: .github/ovsx/node_modules/.bin/ovsx publish --trusted-publishing "./artemis-scorpio-${VERSION}.vsix"
 
   verify:
     name: Verify

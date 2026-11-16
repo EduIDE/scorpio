@@ -48,3 +48,18 @@ test("prewarm skips non-Gradle projects and the off level", async () => {
   await warmupGradleDaemon("/repo", "off", true, off.effects);
   assert.deepEqual(off.runs, []);
 });
+
+test("without an explicit setting the student is asked before anything runs", async () => {
+  const asked: string[] = [];
+  const { runs, effects } = recordingEffects({
+    confirm: async (projectPath) => {
+      asked.push(projectPath);
+      return false;
+    },
+  });
+
+  await warmupGradleDaemon("/repo", "daemon", undefined, effects);
+
+  assert.deepEqual(asked, ["/repo"]);
+  assert.deepEqual(runs, []);
+});
