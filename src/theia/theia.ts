@@ -89,9 +89,10 @@ async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promi
 const AUTH_FAILURE =
   /could not read Username|terminal prompts disabled|Authentication failed|Access denied|Repository not found|returned error: 40[13]/i;
 
-export function cloneFailureMessage(repoUri: URL, error: string): string {
-  // A link with credentials (Artemis) failed for another reason, so the private-repository hint would mislead.
-  if (!repoUri.username && !repoUri.password && AUTH_FAILURE.test(error)) {
+export function cloneFailureMessage(repoUri: URL, error: string, source = theiaEnv.GIT_SOURCE): string {
+  // Only a link from outside Artemis can point at a private repository; an Artemis link (with credentials, or from a
+  // landing page that sets no GIT_SOURCE) failed for another reason, so the hint would mislead.
+  if (source === "external" && !repoUri.username && !repoUri.password && AUTH_FAILURE.test(error)) {
     // Single-quoted, because the student may paste the command and URL paths keep $ ; & | ( ) as they are.
     const url = `${repoUri.protocol}//${repoUri.host}${repoUri.pathname}`;
     const bare = `'${url.replace(/'/g, `'\\''`)}'`;

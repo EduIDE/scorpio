@@ -138,6 +138,7 @@ test("a repository that wants credentials gets the private-repository hint", asy
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   theiaEnv.GIT_URI = new URL(`http://127.0.0.1:${port}/org/private-exercise.git`);
+  theiaEnv.GIT_SOURCE = "external";
   // No prompt, as in the pod: git must fail instead of waiting for a username.
   const oldPrompt = process.env.GIT_TERMINAL_PROMPT;
   const oldAskpass = process.env.GIT_ASKPASS;
@@ -160,13 +161,20 @@ test("a repository that wants credentials gets the private-repository hint", asy
 });
 
 test("the private-repository hint quotes the URL for the shell", () => {
-  const message = cloneFailureMessage(new URL("https://git.example/o/x$(id);'y.git"), "Authentication failed");
+  const message = cloneFailureMessage(new URL("https://git.example/o/x$(id);'y.git"), "Authentication failed", "external");
   assert.ok(message.includes(`git clone 'https://git.example/o/x$(id);'\\''y.git' .`));
 });
 
 test("a link with credentials never gets the private-repository hint", () => {
   for (const url of ["https://user:token@artemis.example/git/x.git", "https://:token@artemis.example/git/x.git"]) {
-    assert.equal(cloneFailureMessage(new URL(url), "Authentication failed"), "Could not clone the exercise repository");
+    assert.equal(cloneFailureMessage(new URL(url), "Authentication failed", "external"), "Could not clone the exercise repository");
+  }
+});
+
+test("only an external link gets the private-repository hint", () => {
+  const url = new URL("https://artemis.example/git/x.git");
+  for (const source of [undefined, "artemis"] as const) {
+    assert.equal(cloneFailureMessage(url, "Authentication failed", source), "Could not clone the exercise repository");
   }
 });
 

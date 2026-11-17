@@ -95,6 +95,21 @@ test("a tag or commit ref is checked out", async () => {
   assert.equal(read(byCommit), "first\n");
 });
 
+test("a ref that starts with a dash is not read as an option", async () => {
+  const { url } = makeRepository();
+  const workspace = emptyWorkspace();
+  const failed: string[] = [];
+
+  await cloneByGivenURL(url, workspace, {
+    mode: "workspace-root",
+    ref: "--orphan=evil",
+    onRefFailed: (ref) => failed.push(ref),
+  });
+
+  assert.equal(git(workspace, "rev-parse", "--abbrev-ref", "HEAD"), "main");
+  assert.deepEqual(failed, ["--orphan=evil"]);
+});
+
 test("an unknown ref keeps the clone on the default branch and reports it", async () => {
   const { url } = makeRepository();
   const workspace = emptyWorkspace();

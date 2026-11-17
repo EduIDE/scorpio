@@ -58,11 +58,7 @@ export async function withCloneLock(
 /**
  * Splits the credentials off a clone URL, so they reach neither the git arguments nor .git/config.
  */
-export function splitCredentials(cloneUrl: URL): {
-  url: string;
-  user: string;
-  password: string;
-} {
+export function splitCredentials(cloneUrl: URL): { url: string; user: string; password: string } {
   const bare = new URL(cloneUrl.toString());
   bare.username = "";
   bare.password = "";
@@ -90,18 +86,12 @@ async function withCredentialHelper<T>(
   const dir = await fs.mkdtemp(path.join(tmpdir(), "scorpio-git-credentials-"));
   try {
     const file = path.join(dir, "credentials");
-    await fs.writeFile(file, `username=${user}\npassword=${password}\n`, {
-      mode: 0o600,
-    });
+    await fs.writeFile(file, `username=${user}\npassword=${password}\n`, { mode: 0o600 });
     const quoted = `'${file.replace(/'/g, `'\\''`)}'`;
     // The first, empty helper drops helpers from the user's own git config, which could store the token.
     const config = ["credential.helper=", `credential.helper=!cat ${quoted} #`];
     return await clone(
-      simpleGit({
-        baseDir: cwd,
-        config,
-        unsafe: { allowUnsafeCredentialHelper: true },
-      }),
+      simpleGit({ baseDir: cwd, config, unsafe: { allowUnsafeCredentialHelper: true } }),
     );
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
@@ -173,8 +163,8 @@ async function cloneIntoWorkspaceRoot(
     if (ref) {
       try {
         // A full clone has every branch and tag, so one checkout covers branches, tags and commits.
-        // "--" keeps git from reading the ref as a path.
-        await simpleGit(workspacePath).raw(["checkout", "--quiet", ref, "--"]);
+        // "--end-of-options" keeps git from reading a ref such as "-f" as an option, "--" from reading it as a path.
+        await simpleGit(workspacePath).raw(["checkout", "--quiet", "--end-of-options", ref, "--"]);
       } catch (e: any) {
         // The repository is there, so the clone counts as done; the student is told which branch they are on.
         console.warn(`Could not check out ${ref}: ${e.message}`);
