@@ -91,8 +91,10 @@ const AUTH_FAILURE =
 
 export function cloneFailureMessage(repoUri: URL, error: string): string {
   // A link with credentials (Artemis) failed for another reason, so the private-repository hint would mislead.
-  if (!repoUri.username && AUTH_FAILURE.test(error)) {
-    const bare = `${repoUri.protocol}//${repoUri.host}${repoUri.pathname}`;
+  if (!repoUri.username && !repoUri.password && AUTH_FAILURE.test(error)) {
+    // Single-quoted, because the student may paste the command and URL paths keep $ ; & | ( ) as they are.
+    const url = `${repoUri.protocol}//${repoUri.host}${repoUri.pathname}`;
+    const bare = `'${url.replace(/'/g, `'\\''`)}'`;
     return (
       `Could not clone ${repoDisplayName(repoUri)}: it is private or does not exist. ` +
       `Private repositories do not open automatically. Run "git clone ${bare} ." in the terminal ` +

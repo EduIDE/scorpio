@@ -156,14 +156,18 @@ test("a repository that wants credentials gets the private-repository hint", asy
 
   assert.equal(vscodeStub.window.errors.length, 1);
   assert.match(vscodeStub.window.errors[0], /^Could not clone private-exercise: it is private or does not exist\./);
-  assert.ok(vscodeStub.window.errors[0].includes(`git clone http://127.0.0.1:${port}/org/private-exercise.git .`));
+  assert.ok(vscodeStub.window.errors[0].includes(`git clone 'http://127.0.0.1:${port}/org/private-exercise.git' .`));
+});
+
+test("the private-repository hint quotes the URL for the shell", () => {
+  const message = cloneFailureMessage(new URL("https://git.example/o/x$(id);'y.git"), "Authentication failed");
+  assert.ok(message.includes(`git clone 'https://git.example/o/x$(id);'\\''y.git' .`));
 });
 
 test("a link with credentials never gets the private-repository hint", () => {
-  assert.equal(
-    cloneFailureMessage(new URL("https://user:token@artemis.example/git/x.git"), "Authentication failed"),
-    "Could not clone the exercise repository",
-  );
+  for (const url of ["https://user:token@artemis.example/git/x.git", "https://:token@artemis.example/git/x.git"]) {
+    assert.equal(cloneFailureMessage(new URL(url), "Authentication failed"), "Could not clone the exercise repository");
+  }
 });
 
 test("GIT_URI wins over TEMPLATE: a failed clone is not replaced by the template", async () => {
