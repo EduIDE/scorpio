@@ -85,6 +85,23 @@ async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promi
   return true;
 }
 
+// git's wording when a host wants credentials: no prompt in the pod, a rejected login, or GitHub/GitLab hiding a private repository.
+const AUTH_FAILURE =
+  /could not read Username|terminal prompts disabled|Authentication failed|Access denied|Repository not found|returned error: 40[13]/i;
+
+export function cloneFailureMessage(repoUri: URL, error: string): string {
+  // A link with credentials (Artemis) failed for another reason, so the private-repository hint would mislead.
+  if (!repoUri.username && AUTH_FAILURE.test(error)) {
+    const bare = `${repoUri.protocol}//${repoUri.host}${repoUri.pathname}`;
+    return (
+      `Could not clone ${repoDisplayName(repoUri)}: it is private or does not exist. ` +
+      `Private repositories do not open automatically. Run "git clone ${bare} ." in the terminal ` +
+      "and enter an access token from your Git host as the password."
+    );
+  }
+  return "Could not clone the exercise repository";
+}
+
 // Host and path only, so no credential from GIT_URI can reach a message.
 function repoDisplayName(repoUri: URL): string {
   return path.basename(repoUri.pathname, ".git") || repoUri.host;
@@ -150,7 +167,7 @@ export async function initTheia() {
       } catch (e: any) {
         // Still write the git identity below, or a clone retried by hand commits as the wrong user.
         console.error(e.message);
-        vscode.window.showErrorMessage("Could not clone the exercise repository");
+        vscode.window.showErrorMessage(cloneFailureMessage(repoUri, String(e?.message ?? e)));
       }
     });
 
