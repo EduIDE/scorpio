@@ -98,8 +98,9 @@ export function cloneFailureMessage(repoUri: URL, error: string, source = theiaE
     const bare = `'${url.replace(/'/g, `'\\''`)}'`;
     return (
       `Could not clone ${repoDisplayName(repoUri)}: it is private or does not exist. ` +
-      `Private repositories do not open automatically. Run "git clone ${bare} ." in the terminal ` +
-      "and enter an access token from your Git host as the password."
+      // A subfolder, because the workspace keeps .vscode/settings.json or .theia and git only clones into an empty folder.
+      `Private repositories do not open automatically. Run "git clone ${bare}" in the terminal ` +
+      `and enter an access token from your Git host as the password. The repository lands in the folder ${repoDisplayName(repoUri)}.`
     );
   }
   return "Could not clone the exercise repository";
