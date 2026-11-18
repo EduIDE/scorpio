@@ -122,12 +122,13 @@ export function parseTheiaEnv(
 ): TheiaEnv {
   const gitUriString = env["GIT_URI"];
   const source = parseGitSource(env["GIT_SOURCE"]);
+  const gitRef = parseGitRef(env["GIT_REF"]);
   return {
     THEIA_FLAG: env["THEIA"] !== undefined || (fromDataBridge && isDataBridgeEnvComplete(env)),
     ARTEMIS_URL: env["ARTEMIS_URL"],
     GIT_URI: gitUriString ? new URL(gitUriString) : undefined,
-    GIT_REF: parseGitRef(env["GIT_REF"]),
-    GIT_REF_INVALID: parseGitRef(env["GIT_REF"]) ? undefined : env["GIT_REF"]?.trim() || undefined,
+    GIT_REF: gitRef,
+    GIT_REF_INVALID: gitRef ? undefined : env["GIT_REF"]?.trim() || undefined,
     GIT_SOURCE: source,
     TEMPLATE: env["TEMPLATE"],
     GIT_USER: env["GIT_USER"],
