@@ -17,6 +17,9 @@ export let theiaEnv: TheiaEnv = {
   THEIA_FLAG: false,
   ARTEMIS_URL: undefined,
   GIT_URI: undefined,
+  GIT_REF: undefined,
+  GIT_REF_INVALID: undefined,
+  GIT_SOURCE: undefined,
   TEMPLATE: undefined,
   GIT_USER: undefined,
   GIT_MAIL: undefined,
@@ -31,6 +34,11 @@ export async function loadTheiaEnv(): Promise<void> {
 
 export function getWorkspaceFolder() {
   return vscode.workspace.workspaceFolders?.at(0)?.uri;
+}
+
+// The ref comes from the environment, so keep markdown link syntax and long text out of a notification.
+function refForDisplay(ref: string): string {
+  return ref.replace(/[\[\]()`\r\n]/g, "").slice(0, 64);
 }
 
 function normalizeRepoUrl(raw: string): string {
@@ -77,6 +85,27 @@ async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promi
   return true;
 }
 
+// git's wording when a host wants credentials: no prompt in the pod, a rejected login, or GitHub/GitLab hiding a private repository.
+const AUTH_FAILURE =
+  /could not read Username|terminal prompts disabled|Authentication failed|Access denied|Repository not found|returned error: 40[13]/i;
+
+export function cloneFailureMessage(repoUri: URL, error: string, source = theiaEnv.GIT_SOURCE): string {
+  // Only a link from outside Artemis can point at a private repository; an Artemis link (with credentials, or from a
+  // landing page that sets no GIT_SOURCE) failed for another reason, so the hint would mislead.
+  if (source === "external" && !repoUri.username && !repoUri.password && AUTH_FAILURE.test(error)) {
+    // Single-quoted, because the student may paste the command and URL paths keep $ ; & | ( ) as they are.
+    const url = `${repoUri.protocol}//${repoUri.host}${repoUri.pathname}`;
+    const bare = `'${url.replace(/'/g, `'\\''`)}'`;
+    return (
+      `Could not clone ${repoDisplayName(repoUri)}: it is private or does not exist. ` +
+      // A subfolder, because the workspace keeps .vscode/settings.json or .theia and git only clones into an empty folder.
+      `Private repositories do not open automatically. Run "git clone ${bare}" in the terminal ` +
+      `and enter an access token from your Git host as the password. The repository lands in the folder ${repoDisplayName(repoUri)}.`
+    );
+  }
+  return "Could not clone the exercise repository";
+}
+
 // Host and path only, so no credential from GIT_URI can reach a message.
 function repoDisplayName(repoUri: URL): string {
   return path.basename(repoUri.pathname, ".git") || repoUri.host;
@@ -108,8 +137,18 @@ export async function initTheia() {
             const content = await workspaceContent(workspacePath);
             if (content.length === 0) {
               report(`Cloning ${repoDisplayName(repoUri)}`);
+              if (theiaEnv.GIT_REF_INVALID) {
+                vscode.window.showWarningMessage(
+                  `GIT_REF "${refForDisplay(theiaEnv.GIT_REF_INVALID)}" is not a valid branch, tag or commit name. The default branch is checked out.`,
+                );
+              }
               await cloneByGivenURL(repoUri, workspacePath, {
                 mode: "workspace-root",
+                ref: theiaEnv.GIT_REF,
+                onRefFailed: (ref) =>
+                  vscode.window.showWarningMessage(
+                    `Could not check out "${refForDisplay(ref)}". The default branch is checked out instead.`,
+                  ),
               });
             } else {
               // Never clear files that might be the student's: the checkout may only look different (renamed remote, git error).
@@ -132,7 +171,7 @@ export async function initTheia() {
       } catch (e: any) {
         // Still write the git identity below, or a clone retried by hand commits as the wrong user.
         console.error(e.message);
-        vscode.window.showErrorMessage("Could not clone the exercise repository");
+        vscode.window.showErrorMessage(cloneFailureMessage(repoUri, String(e?.message ?? e)));
       }
     });
 

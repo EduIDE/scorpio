@@ -6,6 +6,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+- `GIT_REF` checks out a branch, tag or commit after a fresh clone, and `GIT_SOURCE=external` always asks the student before Gradle pre-warming runs, whatever `GRADLE_PREWARM_AUTO_CONFIRM` says (any `GIT_SOURCE` other than `artemis` counts as external). An invalid or unknown `GIT_REF` warns the student and keeps the default branch
+- A clone that fails because the host wants credentials tells the student that the repository is private or does not exist, and how to clone it in the terminal with an access token. Only links with `GIT_SOURCE=external` and no credentials get this hint; Artemis links keep the old message
+
 ## [3.1.0] - 2026-11-16
 
 ### Features

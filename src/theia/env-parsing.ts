@@ -12,10 +12,20 @@
  */
 export type GradlePrewarmLevel = "off" | "daemon" | "deps" | "full";
 
+/**
+ * Set by the landing page: `artemis` for trusted Artemis links, `external` for any other repository.
+ * Unset (an older landing page) behaves as before.
+ */
+export type GitSource = "artemis" | "external";
+
 export type TheiaEnv = {
   THEIA_FLAG: boolean;
   ARTEMIS_URL: string | undefined;
   GIT_URI: URL | undefined;
+  GIT_REF: string | undefined;
+  /** The GIT_REF value that was rejected, so the student can be told the default branch is used. */
+  GIT_REF_INVALID: string | undefined;
+  GIT_SOURCE: GitSource | undefined;
   TEMPLATE: string | undefined;
   GIT_USER: string | undefined;
   GIT_MAIL: string | undefined;
@@ -27,6 +37,8 @@ export const ENV_KEYS = [
   "THEIA",
   "ARTEMIS_URL",
   "GIT_URI",
+  "GIT_REF",
+  "GIT_SOURCE",
   "TEMPLATE",
   "GIT_USER",
   "GIT_MAIL",
@@ -51,6 +63,36 @@ export function parseGradlePrewarm(value: string | undefined): GradlePrewarmLeve
     );
   }
   return DEFAULT_GRADLE_PREWARM;
+}
+
+/** Anything but `artemis` is untrusted; undefined only for an unset or empty value. */
+export function parseGitSource(value: string | undefined): GitSource | undefined {
+  const source = value?.trim().toLowerCase();
+  if (source === "artemis" || source === "external") {
+    return source;
+  }
+  if (source) {
+    // A typo must not make the source trusted: only an unset value keeps the behavior of older landing pages.
+    console.warn(`Unknown GIT_SOURCE "${value}", treating it as "external"`);
+    return "external";
+  }
+  return undefined;
+}
+
+/**
+ * A branch, tag or commit to check out after cloning. Rejected when it could be read as an option or a path, or is
+ * otherwise not something git would accept as a ref name; git reports anything subtler at checkout.
+ */
+export function parseGitRef(value: string | undefined): string | undefined {
+  const ref = value?.trim();
+  if (!ref) {
+    return undefined;
+  }
+  if (ref.length > 255 || ref.startsWith("-") || /[\s~^:?*[\\]|\.\.|@\{/.test(ref)) {
+    console.warn(`Ignoring invalid GIT_REF "${value}"`);
+    return undefined;
+  }
+  return ref;
 }
 
 /**
@@ -79,14 +121,20 @@ export function parseTheiaEnv(
   fromDataBridge: boolean = false,
 ): TheiaEnv {
   const gitUriString = env["GIT_URI"];
+  const source = parseGitSource(env["GIT_SOURCE"]);
   return {
     THEIA_FLAG: env["THEIA"] !== undefined || (fromDataBridge && isDataBridgeEnvComplete(env)),
     ARTEMIS_URL: env["ARTEMIS_URL"],
     GIT_URI: gitUriString ? new URL(gitUriString) : undefined,
+    GIT_REF: parseGitRef(env["GIT_REF"]),
+    GIT_REF_INVALID: parseGitRef(env["GIT_REF"]) ? undefined : env["GIT_REF"]?.trim() || undefined,
+    GIT_SOURCE: source,
     TEMPLATE: env["TEMPLATE"],
     GIT_USER: env["GIT_USER"],
     GIT_MAIL: env["GIT_MAIL"],
     GRADLE_PREWARM: parseGradlePrewarm(env["GRADLE_PREWARM"]),
-    GRADLE_PREWARM_AUTO_CONFIRM: parseGradlePrewarmAutoConfirm(env["GRADLE_PREWARM_AUTO_CONFIRM"]),
+    // The image's auto-confirm is meant for trusted Artemis exercises, so an external repository always asks.
+    GRADLE_PREWARM_AUTO_CONFIRM:
+      parseGradlePrewarmAutoConfirm(env["GRADLE_PREWARM_AUTO_CONFIRM"]) && source !== "external",
   };
 }
