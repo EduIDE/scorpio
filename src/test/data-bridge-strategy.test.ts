@@ -39,3 +39,47 @@ test("the student is told that scorpio waits for the exercise details", async ()
 
   assert.deepEqual(vscodeStub.window.progress, ["Waiting for your exercise details"]);
 });
+
+function stubExtensions(installed: string[]) {
+  const asked: string[] = [];
+  vscodeStub.extensions.getExtension = (id: string) => {
+    asked.push(id);
+    return installed.includes(id) ? { isActive: true } : undefined;
+  };
+  return asked;
+}
+
+test("eduide.eduide-session is used when it is installed", async () => {
+  const asked = stubExtensions(["eduide.eduide-session", "tum-aet.data-bridge"]);
+  vscodeStub.commands.executeCommand = async () => ({ GIT_URI: "https://github.com/example/repo" });
+
+  const env = await new DataBridgeStrategy().load();
+
+  assert.deepEqual(asked, ["eduide.eduide-session", "eduide.eduide-session"]);
+  assert.equal(env.GIT_URI?.href, "https://github.com/example/repo");
+});
+
+test("tum-aet.data-bridge is used when eduide.eduide-session is missing", async () => {
+  const asked = stubExtensions(["tum-aet.data-bridge"]);
+  vscodeStub.commands.executeCommand = async () => ({ GIT_URI: "https://github.com/example/repo" });
+
+  const env = await new DataBridgeStrategy().load();
+
+  assert.deepEqual(asked, ["eduide.eduide-session", "tum-aet.data-bridge", "tum-aet.data-bridge"]);
+  assert.equal(env.GIT_URI?.href, "https://github.com/example/repo");
+});
+
+test("without either extension scorpio warns and falls back to the process env", async () => {
+  stubExtensions([]);
+  let polled = false;
+  vscodeStub.commands.executeCommand = async () => {
+    polled = true;
+    return {};
+  };
+  vscodeStub.window.warnings.length = 0;
+
+  await new DataBridgeStrategy().load();
+
+  assert.equal(polled, false);
+  assert.equal(vscodeStub.window.warnings.length, 1);
+});

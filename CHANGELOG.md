@@ -6,6 +6,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+### Features
+
+- The data bridge strategy also supports the `eduide.eduide-session` extension of the EduIDE Go control plane. It is looked up first, `tum-aet.data-bridge` second, so both work during the migration
+
 ## [3.2.0] - 2026-11-18
 
 ### Features

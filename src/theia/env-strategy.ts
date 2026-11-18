@@ -52,7 +52,9 @@ export class ProcessEnvStrategy implements TheiaEnvStrategy {
  * Used when SCORPIO_THEIA_ENV_STRATEGY=data-bridge.
  */
 export class DataBridgeStrategy implements TheiaEnvStrategy {
-  private static readonly DATA_BRIDGE_EXTENSION_ID = "tum-aet.data-bridge";
+  // The Go control plane ships eduide.eduide-session, the operator ships tum-aet.data-bridge.
+  // Both expose the same commands, so the first one that is installed wins.
+  private static readonly EXTENSION_IDS = ["eduide.eduide-session", "tum-aet.data-bridge"];
   private static readonly COMMAND = "dataBridge.getEnv";
   private static readonly POLL_INTERVAL_MS = 500;
   private static readonly TIMEOUT_MS = 10000;
@@ -66,9 +68,10 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
   async load(): Promise<TheiaEnv> {
     this.outputChannel.appendLine("Using data bridge strategy");
 
-    const dataBridgeExt = vscode.extensions.getExtension(
-      DataBridgeStrategy.DATA_BRIDGE_EXTENSION_ID,
+    const installedId = DataBridgeStrategy.EXTENSION_IDS.find((id) =>
+      vscode.extensions.getExtension(id),
     );
+    const dataBridgeExt = installedId ? vscode.extensions.getExtension(installedId) : undefined;
     if (!dataBridgeExt) {
       this.outputChannel.appendLine(
         "Data bridge extension not installed, falling back to process env",
