@@ -6,9 +6,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-20
+
 ### Features
 
-- The data bridge strategy also supports the `eduide.eduide-session` extension of the EduIDE Go control plane. It is looked up first, `tum-aet.data-bridge` second, so both work during the migration
+- The data bridge strategy also supports the `eduide.eduide-session` extension of the EduIDE Go control plane. It is looked up first, `tum-aet.data-bridge` second, so both work during the migration ([#230](https://github.com/EduIDE/scorpio/pull/230))
 
 ### Fixes
 
