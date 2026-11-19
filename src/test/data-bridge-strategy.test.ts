@@ -39,3 +39,65 @@ test("the student is told that scorpio waits for the exercise details", async ()
 
   assert.deepEqual(vscodeStub.window.progress, ["Waiting for your exercise details"]);
 });
+
+function stubExtensions(installed: string[]) {
+  const asked: string[] = [];
+  vscodeStub.extensions.getExtension = (id: string) => {
+    asked.push(id);
+    return installed.includes(id) ? { isActive: true } : undefined;
+  };
+  return asked;
+}
+
+test("eduide.eduide-session is used when it is installed", async () => {
+  const asked = stubExtensions(["eduide.eduide-session", "tum-aet.data-bridge"]);
+  vscodeStub.commands.executeCommand = async () => ({ GIT_URI: "https://github.com/example/repo" });
+
+  const env = await new DataBridgeStrategy().load();
+
+  assert.deepEqual(asked, ["eduide.eduide-session", "eduide.eduide-session"]);
+  assert.equal(env.GIT_URI?.href, "https://github.com/example/repo");
+});
+
+test("tum-aet.data-bridge is used when eduide.eduide-session is missing", async () => {
+  const asked = stubExtensions(["tum-aet.data-bridge"]);
+  vscodeStub.commands.executeCommand = async () => ({ GIT_URI: "https://github.com/example/repo" });
+
+  const env = await new DataBridgeStrategy().load();
+
+  assert.deepEqual(asked, ["eduide.eduide-session", "tum-aet.data-bridge", "tum-aet.data-bridge"]);
+  assert.equal(env.GIT_URI?.href, "https://github.com/example/repo");
+});
+
+test("without either extension scorpio warns and falls back to the process env", async () => {
+  stubExtensions([]);
+  let polled = false;
+  vscodeStub.commands.executeCommand = async () => {
+    polled = true;
+    return {};
+  };
+  vscodeStub.window.warnings.length = 0;
+
+  await new DataBridgeStrategy().load();
+
+  assert.equal(polled, false);
+  assert.equal(vscodeStub.window.warnings.length, 1);
+});
+
+test("an Artemis launch without a repository link tells the student instead of staying silent", async () => {
+  const strategy = DataBridgeStrategy as unknown as { TIMEOUT_MS: number; POLL_INTERVAL_MS: number };
+  const [timeout, poll] = [strategy.TIMEOUT_MS, strategy.POLL_INTERVAL_MS];
+  [strategy.TIMEOUT_MS, strategy.POLL_INTERVAL_MS] = [60, 10];
+  vscodeStub.window.warnings.length = 0;
+  try {
+    await loadWithBridge({ ARTEMIS_URL: "https://artemis.example", GIT_USER: "student" });
+    assert.equal(vscodeStub.window.warnings.length, 1);
+    assert.match(vscodeStub.window.warnings[0], /without a repository link/);
+
+    vscodeStub.window.warnings.length = 0;
+    await loadWithBridge({ GIT_USER: "student" });
+    assert.equal(vscodeStub.window.warnings.length, 0);
+  } finally {
+    [strategy.TIMEOUT_MS, strategy.POLL_INTERVAL_MS] = [timeout, poll];
+  }
+});

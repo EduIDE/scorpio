@@ -89,6 +89,10 @@ async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promi
 const AUTH_FAILURE =
   /could not read Username|terminal prompts disabled|Authentication failed|Access denied|Repository not found|returned error: 40[13]/i;
 
+// git's wording when the host cannot be reached at all.
+const NETWORK_FAILURE =
+  /Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Network is unreachable/i;
+
 export function cloneFailureMessage(repoUri: URL, error: string, source = theiaEnv.GIT_SOURCE): string {
   // Only a link from outside Artemis can point at a private repository; an Artemis link (with credentials, or from a
   // landing page that sets no GIT_SOURCE) failed for another reason, so the hint would mislead.
@@ -103,7 +107,17 @@ export function cloneFailureMessage(repoUri: URL, error: string, source = theiaE
       `and enter an access token from your Git host as the password. The repository lands in the folder ${repoDisplayName(repoUri)}.`
     );
   }
-  return "Could not clone the exercise repository";
+  // Host and repository name only: the raw git error can contain the URL with its credentials.
+  const name = repoDisplayName(repoUri);
+  const again =
+    source === "external" ? "open the link again" : "start the exercise again from Artemis";
+  if (AUTH_FAILURE.test(error)) {
+    return `Could not clone ${name}: ${repoUri.host} did not accept the access. Please ${again} to get a fresh link.`;
+  }
+  if (NETWORK_FAILURE.test(error)) {
+    return `Could not clone ${name}: ${repoUri.host} is not reachable. Check your connection, then reload the window to try again.`;
+  }
+  return `Could not clone ${name}. Reload the window to try again; if it keeps failing, ${again}.`;
 }
 
 // Host and path only, so no credential from GIT_URI can reach a message.

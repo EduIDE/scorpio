@@ -6,6 +6,15 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+### Features
+
+- The data bridge strategy also supports the `eduide.eduide-session` extension of the EduIDE Go control plane. It is looked up first, `tum-aet.data-bridge` second, so both work during the migration
+
+### Fixes
+
+- A failed clone names the repository and the cause (access rejected, host not reachable, other) and tells the student what to do next, instead of the generic "Could not clone the exercise repository". The message shows host and repository name only, never credentials
+- When Artemis sends its details without a repository link, scorpio says so and asks the student to start the exercise again, instead of leaving an empty workspace without a word
+
 ## [3.2.0] - 2026-11-18
 
 ### Features

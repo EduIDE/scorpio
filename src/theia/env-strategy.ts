@@ -52,7 +52,9 @@ export class ProcessEnvStrategy implements TheiaEnvStrategy {
  * Used when SCORPIO_THEIA_ENV_STRATEGY=data-bridge.
  */
 export class DataBridgeStrategy implements TheiaEnvStrategy {
-  private static readonly DATA_BRIDGE_EXTENSION_ID = "tum-aet.data-bridge";
+  // The Go control plane ships eduide.eduide-session, the operator ships tum-aet.data-bridge.
+  // Both expose the same commands, so the first one that is installed wins.
+  private static readonly EXTENSION_IDS = ["eduide.eduide-session", "tum-aet.data-bridge"];
   private static readonly COMMAND = "dataBridge.getEnv";
   private static readonly POLL_INTERVAL_MS = 500;
   private static readonly TIMEOUT_MS = 10000;
@@ -66,9 +68,10 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
   async load(): Promise<TheiaEnv> {
     this.outputChannel.appendLine("Using data bridge strategy");
 
-    const dataBridgeExt = vscode.extensions.getExtension(
-      DataBridgeStrategy.DATA_BRIDGE_EXTENSION_ID,
+    const installedId = DataBridgeStrategy.EXTENSION_IDS.find((id) =>
+      vscode.extensions.getExtension(id),
     );
+    const dataBridgeExt = installedId ? vscode.extensions.getExtension(installedId) : undefined;
     if (!dataBridgeExt) {
       this.outputChannel.appendLine(
         "Data bridge extension not installed, falling back to process env",
@@ -94,8 +97,10 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
   private async pollForEnvironmentVariables(): Promise<TheiaEnv> {
     const startTime = Date.now();
 
+    let lastEnv: Record<string, string | undefined> = {};
     while (Date.now() - startTime < DataBridgeStrategy.TIMEOUT_MS) {
       const env = await this.fetchEnvironmentVariables();
+      lastEnv = env;
 
       // The operator delivers a session's variables in one injection, so the first one
       // to arrive means the rest are there too (see isDataBridgeEnvComplete).
@@ -115,6 +120,13 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
     this.outputChannel.appendLine(
       "Timeout waiting for environment variables, falling back to process env",
     );
+    if (lastEnv["ARTEMIS_URL"]) {
+      // Artemis sent its details but no repository, so there is nothing to clone; say so instead of an empty workspace.
+      vscode.window.showWarningMessage(
+        "Your exercise details from Artemis arrived without a repository link, so nothing was cloned. " +
+          "Please start the exercise again from Artemis. If this keeps happening, contact your course team.",
+      );
+    }
     return new ProcessEnvStrategy().load();
   }
 

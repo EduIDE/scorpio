@@ -127,7 +127,9 @@ test("a failed clone is reported and the identity is still written", async () =>
 
   await initTheia();
 
-  assert.deepEqual(vscodeStub.window.errors, ["Could not clone the exercise repository"]);
+  assert.deepEqual(vscodeStub.window.errors, [
+    "Could not clone missing. Reload the window to try again; if it keeps failing, start the exercise again from Artemis.",
+  ]);
   assert.equal(globalConfig("user.name"), "Ada Lovelace");
 });
 
@@ -166,17 +168,34 @@ test("the private-repository hint quotes the URL for the shell", () => {
   assert.ok(message.includes(`git clone 'https://git.example/o/x$(id);'\\''y.git'"`));
 });
 
-test("a link with credentials never gets the private-repository hint", () => {
+test("a link with credentials never gets the private-repository hint, and never shows the credentials", () => {
   for (const url of ["https://user:token@artemis.example/git/x.git", "https://:token@artemis.example/git/x.git"]) {
-    assert.equal(cloneFailureMessage(new URL(url), "Authentication failed", "external"), "Could not clone the exercise repository");
+    const message = cloneFailureMessage(new URL(url), "Authentication failed for 'https://user:token@artemis.example'", "external");
+    assert.ok(!message.includes("git clone"));
+    assert.ok(!message.includes("token"));
+    assert.equal(message, "Could not clone x: artemis.example did not accept the access. Please open the link again to get a fresh link.");
   }
 });
 
 test("only an external link gets the private-repository hint", () => {
   const url = new URL("https://artemis.example/git/x.git");
   for (const source of [undefined, "artemis"] as const) {
-    assert.equal(cloneFailureMessage(url, "Authentication failed", source), "Could not clone the exercise repository");
+    assert.equal(
+      cloneFailureMessage(url, "Authentication failed", source),
+      "Could not clone x: artemis.example did not accept the access. Please start the exercise again from Artemis to get a fresh link.",
+    );
   }
+});
+
+test("an unreachable host and other failures get their own message", () => {
+  const url = new URL("https://user:secret@artemis.example/git/x.git");
+  assert.equal(
+    cloneFailureMessage(url, "fatal: unable to access 'https://artemis.example/git/x.git/': Could not resolve host: artemis.example", "artemis"),
+    "Could not clone x: artemis.example is not reachable. Check your connection, then reload the window to try again.",
+  );
+  const other = cloneFailureMessage(url, "fatal: early EOF secret", "artemis");
+  assert.equal(other, "Could not clone x. Reload the window to try again; if it keeps failing, start the exercise again from Artemis.");
+  assert.ok(!other.includes("secret"));
 });
 
 test("GIT_URI wins over TEMPLATE: a failed clone is not replaced by the template", async () => {

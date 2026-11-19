@@ -30,6 +30,6 @@ Scorpio reads the following variables from the Theia environment:
 
 ## Environment Strategy
 
-Set `SCORPIO_THEIA_ENV_STRATEGY=data-bridge` to use the DataBridge extension (`tum-aet.data-bridge`) for environment variable loading. Otherwise, process environment variables are read directly.
+Set `SCORPIO_THEIA_ENV_STRATEGY=data-bridge` to use a session extension for environment variable loading: `eduide.eduide-session` (EduIDE Go control plane) if installed, otherwise `tum-aet.data-bridge` (operator). If neither is installed, process environment variables are read directly.
 
 The operator sets this for warm-pool (eagerly started) instances, which receive the session's variables after they started. Scorpio polls the bridge for up to 10 seconds and proceeds as soon as `GIT_URI`, `TEMPLATE` or `THEIA` arrives; the operator injects all of a session's variables at once. `ARTEMIS_URL` is not required, so sessions opened from somewhere other than Artemis, such as a GitHub link, are cloned too.
