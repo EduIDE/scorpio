@@ -97,8 +97,10 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
   private async pollForEnvironmentVariables(): Promise<TheiaEnv> {
     const startTime = Date.now();
 
+    let lastEnv: Record<string, string | undefined> = {};
     while (Date.now() - startTime < DataBridgeStrategy.TIMEOUT_MS) {
       const env = await this.fetchEnvironmentVariables();
+      lastEnv = env;
 
       // The operator delivers a session's variables in one injection, so the first one
       // to arrive means the rest are there too (see isDataBridgeEnvComplete).
@@ -118,6 +120,13 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
     this.outputChannel.appendLine(
       "Timeout waiting for environment variables, falling back to process env",
     );
+    if (lastEnv["ARTEMIS_URL"]) {
+      // Artemis sent its details but no repository, so there is nothing to clone; say so instead of an empty workspace.
+      vscode.window.showWarningMessage(
+        "Your exercise details from Artemis arrived without a repository link, so nothing was cloned. " +
+          "Please start the exercise again from Artemis. If this keeps happening, contact your course team.",
+      );
+    }
     return new ProcessEnvStrategy().load();
   }
 

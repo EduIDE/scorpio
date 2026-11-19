@@ -83,3 +83,21 @@ test("without either extension scorpio warns and falls back to the process env",
   assert.equal(polled, false);
   assert.equal(vscodeStub.window.warnings.length, 1);
 });
+
+test("an Artemis launch without a repository link tells the student instead of staying silent", async () => {
+  const strategy = DataBridgeStrategy as unknown as { TIMEOUT_MS: number; POLL_INTERVAL_MS: number };
+  const [timeout, poll] = [strategy.TIMEOUT_MS, strategy.POLL_INTERVAL_MS];
+  [strategy.TIMEOUT_MS, strategy.POLL_INTERVAL_MS] = [60, 10];
+  vscodeStub.window.warnings.length = 0;
+  try {
+    await loadWithBridge({ ARTEMIS_URL: "https://artemis.example", GIT_USER: "student" });
+    assert.equal(vscodeStub.window.warnings.length, 1);
+    assert.match(vscodeStub.window.warnings[0], /without a repository link/);
+
+    vscodeStub.window.warnings.length = 0;
+    await loadWithBridge({ GIT_USER: "student" });
+    assert.equal(vscodeStub.window.warnings.length, 0);
+  } finally {
+    [strategy.TIMEOUT_MS, strategy.POLL_INTERVAL_MS] = [timeout, poll];
+  }
+});
