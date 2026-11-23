@@ -260,9 +260,8 @@ export async function cloneRepositoryIntoWorkspace(credentialSchemes = ["https:"
       }
     }
     if (result === "cloned") {
+      // No git.refresh: the Git extension finds the new repository by itself, and refreshing first shows "no available repositories".
       vscode.window.showInformationMessage(`Cloned ${name} into the workspace.`);
-      // The Git extension watches the workspace; this only speeds up picking the repository up.
-      await Promise.resolve(vscode.commands.executeCommand("git.refresh")).catch(() => {});
     }
   } catch (e: any) {
     // Host and name only: the raw git error can contain the URL with its credentials.
