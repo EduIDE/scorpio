@@ -6,6 +6,8 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [3.4.1] - 2026-11-23
+
 ### Fixes
 
 - Cloning with "Clone Repository" no longer shows a "Git: There are no available repositories" error after a successful clone ([#237](https://github.com/EduIDE/scorpio/pull/237))
