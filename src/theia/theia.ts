@@ -7,6 +7,7 @@ import {
   cloneByGivenURL,
   setOrigin,
   splitCredentials,
+  storeCredentials,
   withCloneLock,
 } from "../participation/cloning.service";
 import {
@@ -244,6 +245,12 @@ export async function cloneRepositoryIntoWorkspace(credentialSchemes = ["https:"
       if (result === "auth") {
         vscode.window.showErrorMessage(`Could not clone ${name}: the access was not accepted.`);
         return;
+      }
+      if (result === "cloned") {
+        // Losing the cache only means git asks again on the first push.
+        await storeCredentials(workspacePath, repoUri, user, token).catch((e) =>
+          console.warn(`Could not cache the credentials: ${e?.message}`),
+        );
       }
     }
     if (result === "cloned") {

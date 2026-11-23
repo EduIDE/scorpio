@@ -1,5 +1,6 @@
 import { simpleGit, type SimpleGit } from "simple-git";
 import { tmpdir } from "os";
+import { spawn } from "child_process";
 import * as path from "path";
 import * as fs from "fs/promises";
 
@@ -98,6 +99,32 @@ async function withCredentialHelper<T>(
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
+}
+
+/**
+ * Hands the credentials to the user's own credential helper (the in-memory cache in the standalone images), so the
+ * first push does not ask again. Passed on stdin, never in arguments; without a configured helper git keeps nothing.
+ */
+export async function storeCredentials(
+  cwd: string,
+  cloneUrl: URL,
+  user: string,
+  password: string,
+): Promise<void> {
+  const protocol = cloneUrl.protocol.replace(/:$/, "");
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("git", ["credential", "approve"], {
+      cwd,
+      stdio: ["pipe", "ignore", "ignore"],
+    });
+    child.on("error", reject);
+    child.on("close", (code) =>
+      code === 0 ? resolve() : reject(new Error(`git credential approve exited ${code}`)),
+    );
+    child.stdin.end(
+      `protocol=${protocol}\nhost=${cloneUrl.host}\nusername=${user}\npassword=${password}\n\n`,
+    );
+  });
 }
 
 /**

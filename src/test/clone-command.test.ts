@@ -68,8 +68,8 @@ beforeEach(async () => {
       res.writeHead(401, { "WWW-Authenticate": 'Basic realm="git"' }).end();
       return;
     }
-    const file = path.join(served, req.url!.split("?")[0]);
-    if (!existsSync(file)) {
+    const file = path.resolve(served, `.${req.url!.split("?")[0]}`);
+    if (!file.startsWith(served + path.sep) || !existsSync(file)) {
       res.writeHead(404).end();
       return;
     }
@@ -149,6 +149,25 @@ test("an authentication failure asks for credentials and keeps them out of .git/
   ].join("\n");
   assert.ok(!everywhere.includes("s3cret"));
   assert.deepEqual(vscodeStub.window.errors, []);
+});
+
+test("after a private clone the credentials go to the user's credential helper, not into .git", async () => {
+  requireLogin = true;
+  const store = path.join(process.env.HOME!, "credential-store");
+  git(process.env.HOME!, "config", "--global", "credential.helper", `store --file=${store}`);
+  vscodeStub.window.inputs.push(baseUrl, "ada", "s3cret");
+
+  await cloneRepositoryIntoWorkspace(both);
+
+  assert.equal(readFileSync(path.join(workspace, "README.md"), "utf8"), "exercise");
+  assert.equal(
+    decodeURIComponent(readFileSync(store, "utf8").trim()),
+    `http://ada:s3cret@${new URL(baseUrl).host}`,
+  );
+  const inGit = allFiles(path.join(workspace, ".git"))
+    .map((f) => readFileSync(f, "latin1"))
+    .join("\n");
+  assert.ok(!inGit.includes("s3cret"));
 });
 
 test("wrong credentials fail with a message that shows neither token nor raw error", async () => {
