@@ -110,12 +110,18 @@ test("only http and https URLs are accepted", () => {
 
 test("a public repository is cloned into the workspace root", async () => {
   vscodeStub.window.inputs.push(baseUrl);
+  const commands: unknown[] = [];
+  const original = vscodeStub.commands.executeCommand;
+  vscodeStub.commands.executeCommand = (...args: unknown[]) => commands.push(args[0]);
 
   await cloneRepositoryIntoWorkspace();
+  vscodeStub.commands.executeCommand = original;
 
   assert.equal(readFileSync(path.join(workspace, "README.md"), "utf8"), "exercise");
   assert.deepEqual(vscodeStub.window.errors, []);
   assert.equal(vscodeStub.window.infos.length, 1);
+  // A git.refresh before the Git extension sees the repository pops up "no available repositories".
+  assert.ok(!commands.includes("git.refresh"));
 });
 
 test("a workspace with files is never overwritten", async () => {
