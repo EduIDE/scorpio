@@ -8,7 +8,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Fixes
 
-- Cloning with "Clone Repository" no longer shows a "Git: There are no available repositories" error after a successful clone ([#TBD](https://github.com/EduIDE/scorpio/pull/TBD))
+- Cloning with "Clone Repository" no longer shows a "Git: There are no available repositories" error after a successful clone ([#237](https://github.com/EduIDE/scorpio/pull/237))
 
 ## [3.4.0] - 2026-11-23
 
