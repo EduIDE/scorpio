@@ -159,13 +159,8 @@ test("a repository that wants credentials gets the private-repository hint", asy
 
   assert.equal(vscodeStub.window.errors.length, 1);
   assert.match(vscodeStub.window.errors[0], /^Could not clone private-exercise: it is private or does not exist\./);
-  assert.ok(vscodeStub.window.errors[0].includes(`git clone 'http://127.0.0.1:${port}/org/private-exercise.git'" in the terminal`));
-  assert.match(vscodeStub.window.errors[0], /lands in the folder private-exercise\.$/);
-});
-
-test("the private-repository hint quotes the URL for the shell", () => {
-  const message = cloneFailureMessage(new URL("https://git.example/o/x$(id);'y.git"), "Authentication failed", "external");
-  assert.ok(message.includes(`git clone 'https://git.example/o/x$(id);'\\''y.git'"`));
+  assert.match(vscodeStub.window.errors[0], /Use "Clone Repository" in the Source Control view/);
+  assert.ok(!vscodeStub.window.errors[0].includes("git clone"));
 });
 
 test("a link with credentials never gets the private-repository hint, and never shows the credentials", () => {

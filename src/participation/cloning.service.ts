@@ -12,6 +12,8 @@ type CloneOptions = {
   ref?: string;
   /** Called when the ref cannot be checked out; the clone is kept on the default branch. */
   onRefFailed?: (ref: string) => void;
+  /** Keep the credentials of the URL in origin (the Artemis path needs them); false leaves a bare origin. Defaults to true. */
+  keepCredentialsInOrigin?: boolean;
 };
 
 type PreservedWorkspaceEntry = {
@@ -118,6 +120,7 @@ export async function cloneByGivenURL(
       options.preservedPaths ?? THEIA_PRESERVED_PATHS,
       options.ref,
       options.onRefFailed,
+      options.keepCredentialsInOrigin ?? true,
     );
   }
 
@@ -142,6 +145,7 @@ async function cloneIntoWorkspaceRoot(
   preservedPaths: string[] = [],
   ref?: string,
   onRefFailed?: (ref: string) => void,
+  keepCredentialsInOrigin = true,
 ): Promise<string> {
   const backupRoot = await fs.mkdtemp(path.join(tmpdir(), "scorpio-workspace-clone-"));
   const preservedEntries = await movePreservedWorkspaceEntries(
@@ -158,7 +162,7 @@ async function cloneIntoWorkspaceRoot(
 
     const { url, user, password } = splitCredentials(cloneUrl);
     await withCredentialHelper(user, password, workspacePath, (git) => git.clone(url, "."));
-    await setOrigin(workspacePath, cloneUrl);
+    await setOrigin(workspacePath, keepCredentialsInOrigin ? cloneUrl : new URL(url));
     cloneSucceeded = true;
     if (ref) {
       try {
