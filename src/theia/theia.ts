@@ -172,6 +172,12 @@ export async function cloneRepositoryIntoWorkspace(credentialSchemes = ["https:"
   }
   const repoUri = new URL(input);
   const name = repoDisplayName(repoUri);
+  if ((repoUri.username || repoUri.password) && !credentialSchemes.includes(repoUri.protocol)) {
+    vscode.window.showErrorMessage(
+      "Credentials are only sent over https. Remove them from the URL or use https.",
+    );
+    return;
+  }
 
   // One clone attempt under the lock. The emptiness check is repeated for every attempt, because the
   // student may have added files while a prompt was open and a clone clears the workspace.

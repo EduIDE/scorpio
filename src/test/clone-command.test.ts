@@ -15,6 +15,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
+import { cloneByGivenURL } from "../participation/cloning.service";
 import { cloneRepositoryIntoWorkspace, theiaEnv, validateRepoUrl } from "../theia/theia";
 
 const both = ["https:", "http:"];
@@ -168,6 +169,30 @@ test("after a private clone the credentials go to the user's credential helper, 
     .map((f) => readFileSync(f, "latin1"))
     .join("\n");
   assert.ok(!inGit.includes("s3cret"));
+});
+
+test("an http URL with credentials in it is refused before anything is sent", async () => {
+  requireLogin = true;
+  let requests = 0;
+  server.on("request", () => requests++);
+  vscodeStub.window.inputs.push(baseUrl.replace("http://", "http://ada:s3cret@"));
+
+  await cloneRepositoryIntoWorkspace();
+
+  assert.equal(requests, 0);
+  assert.ok(vscodeStub.window.errors[0].includes("only sent over https"));
+  assert.ok(!vscodeStub.window.errors[0].includes("s3cret"));
+});
+
+test("keepCredentialsInOrigin false also leaves a bare origin in subdirectory mode", async () => {
+  requireLogin = true;
+  const url = new URL(baseUrl);
+  url.username = "ada";
+  url.password = "s3cret";
+
+  const clonePath = await cloneByGivenURL(url, workspace, { keepCredentialsInOrigin: false });
+
+  assert.equal(git(clonePath, "remote", "get-url", "origin").trim(), baseUrl);
 });
 
 test("wrong credentials fail with a message that shows neither token nor raw error", async () => {

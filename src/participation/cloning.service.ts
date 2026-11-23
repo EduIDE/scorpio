@@ -158,7 +158,10 @@ export async function cloneByGivenURL(
 
   try {
     await withCredentialHelper(user, password, destinationPath, (git) => git.clone(url, clonePath));
-    await setOrigin(clonePath, cloneUrl);
+    await setOrigin(
+      clonePath,
+      (options?.keepCredentialsInOrigin ?? true) ? cloneUrl : new URL(url),
+    );
   } catch (e: any) {
     throw new Error(`Error cloning repository: ${e.message}`);
   }
