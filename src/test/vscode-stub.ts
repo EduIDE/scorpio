@@ -23,6 +23,27 @@ export const vscodeStub = {
     setStatusBarMessage(message: string) {
       this.statusBar.push(message);
     },
+    // Answers for showInputBox in order; every call's options are recorded in prompts.
+    inputs: [] as (string | undefined)[],
+    prompts: [] as {
+      prompt?: string;
+      password?: boolean;
+      value?: string;
+      ignoreFocusOut?: boolean;
+    }[],
+    infos: [] as string[],
+    showInputBox(options: {
+      prompt?: string;
+      password?: boolean;
+      value?: string;
+      ignoreFocusOut?: boolean;
+    }) {
+      this.prompts.push(options);
+      return Promise.resolve(this.inputs.shift());
+    },
+    showInformationMessage(message: string) {
+      this.infos.push(message);
+    },
     errors: [] as string[],
     warnings: [] as string[],
     showWarningMessage(message: string) {

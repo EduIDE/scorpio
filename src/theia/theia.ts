@@ -3,7 +3,13 @@ import { GitConfigScope, simpleGit } from "simple-git";
 import { hostname } from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
-import { cloneByGivenURL, setOrigin, withCloneLock } from "../participation/cloning.service";
+import {
+  cloneByGivenURL,
+  setOrigin,
+  splitCredentials,
+  storeCredentials,
+  withCloneLock,
+} from "../participation/cloning.service";
 import {
   applyTemplate,
   DEFAULT_TEMPLATES_DIR,
@@ -93,18 +99,19 @@ const AUTH_FAILURE =
 const NETWORK_FAILURE =
   /Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Network is unreachable/i;
 
-export function cloneFailureMessage(repoUri: URL, error: string, source = theiaEnv.GIT_SOURCE): string {
+export function cloneFailureMessage(
+  repoUri: URL,
+  error: string,
+  source = theiaEnv.GIT_SOURCE,
+): string {
   // Only a link from outside Artemis can point at a private repository; an Artemis link (with credentials, or from a
   // landing page that sets no GIT_SOURCE) failed for another reason, so the hint would mislead.
   if (source === "external" && !repoUri.username && !repoUri.password && AUTH_FAILURE.test(error)) {
-    // Single-quoted, because the student may paste the command and URL paths keep $ ; & | ( ) as they are.
-    const url = `${repoUri.protocol}//${repoUri.host}${repoUri.pathname}`;
-    const bare = `'${url.replace(/'/g, `'\\''`)}'`;
     return (
       `Could not clone ${repoDisplayName(repoUri)}: it is private or does not exist. ` +
-      // A subfolder, because the workspace keeps .vscode/settings.json or .theia and git only clones into an empty folder.
-      `Private repositories do not open automatically. Run "git clone ${bare}" in the terminal ` +
-      `and enter an access token from your Git host as the password. The repository lands in the folder ${repoDisplayName(repoUri)}.`
+      // The Git extension would clone into a subfolder, where the repository's .vscode config is not found.
+      `Private repositories do not open automatically. Use "Clone Repository" in the Source Control view ` +
+      `(or the command "Scorpio: Clone Repository into Workspace") and enter an access token from your Git host as the password.`
     );
   }
   // Host and repository name only: the raw git error can contain the URL with its credentials.
@@ -123,6 +130,147 @@ export function cloneFailureMessage(repoUri: URL, error: string, source = theiaE
 // Host and path only, so no credential from GIT_URI can reach a message.
 function repoDisplayName(repoUri: URL): string {
   return path.basename(repoUri.pathname, ".git") || repoUri.host;
+}
+
+export function validateRepoUrl(value: string): string | undefined {
+  if (!value.trim()) {
+    return undefined;
+  }
+  try {
+    const { protocol } = new URL(value.trim());
+    return protocol === "https:" || protocol === "http:" ? undefined : "Enter an https or http URL";
+  } catch {
+    return "Enter an https or http URL";
+  }
+}
+
+// credentialSchemes is a parameter only so tests can use a local http server; a token must not travel over plain http.
+export async function cloneRepositoryIntoWorkspace(credentialSchemes = ["https:"]) {
+  const workspaceFolderUri = getWorkspaceFolder();
+  if (!workspaceFolderUri) {
+    vscode.window.showErrorMessage("No workspace folder available to clone the repository into");
+    return;
+  }
+  const workspacePath = workspaceFolderUri.fsPath;
+
+  // After a failed private link the student lands here with the URL filled in (never with credentials).
+  let prefill: string | undefined;
+  if (theiaEnv.GIT_SOURCE === "external" && theiaEnv.GIT_URI) {
+    prefill = splitCredentials(theiaEnv.GIT_URI).url;
+  }
+  const input = (
+    await vscode.window.showInputBox({
+      prompt: "Repository URL",
+      placeHolder: "https://github.com/owner/repository.git",
+      value: prefill,
+      ignoreFocusOut: true,
+      validateInput: validateRepoUrl,
+    })
+  )?.trim();
+  if (!input) {
+    return;
+  }
+  const repoUri = new URL(input);
+  const name = repoDisplayName(repoUri);
+  if ((repoUri.username || repoUri.password) && !credentialSchemes.includes(repoUri.protocol)) {
+    vscode.window.showErrorMessage(
+      "Credentials are only sent over https. Remove them from the URL or use https.",
+    );
+    return;
+  }
+
+  // One clone attempt under the lock. The emptiness check is repeated for every attempt, because the
+  // student may have added files while a prompt was open and a clone clears the workspace.
+  const attempt = async (uri: URL): Promise<"cloned" | "blocked" | "auth"> => {
+    let outcome: "cloned" | "blocked" | "auth" = "blocked";
+    const ranAlone = await withCloneLock(async () => {
+      const content = await workspaceContent(workspacePath);
+      if (content.length > 0) {
+        vscode.window.showErrorMessage(
+          `The workspace is not empty, so nothing was cloned. Remove or move these first: ${content.join(", ")}`,
+        );
+        return;
+      }
+      await withWorkspaceProgress(async (report) => {
+        report(`Cloning ${name}`);
+        try {
+          await cloneByGivenURL(uri, workspacePath, {
+            mode: "workspace-root",
+            keepCredentialsInOrigin: false,
+          });
+          outcome = "cloned";
+        } catch (e: any) {
+          if (!AUTH_FAILURE.test(String(e?.message))) {
+            throw e;
+          }
+          outcome = "auth";
+        }
+      });
+    });
+    if (!ranAlone) {
+      vscode.window.showWarningMessage(
+        "Another window is cloning a repository. Try again in a moment.",
+      );
+    }
+    return outcome;
+  };
+
+  try {
+    let result = await attempt(repoUri);
+    if (result === "auth") {
+      if (!credentialSchemes.includes(repoUri.protocol)) {
+        vscode.window.showErrorMessage(
+          `Could not clone ${name}: it needs credentials, which are only sent over https.`,
+        );
+        return;
+      }
+      // Asked outside the lock, so a slow student does not block other windows.
+      const user = (
+        await vscode.window.showInputBox({
+          prompt: "Username for the repository",
+          ignoreFocusOut: true,
+        })
+      )?.trim();
+      const token = user
+        ? (
+            await vscode.window.showInputBox({
+              prompt: "Access token",
+              password: true,
+              ignoreFocusOut: true,
+            })
+          )?.trim()
+        : undefined;
+      if (!user || !token) {
+        vscode.window.showInformationMessage("Clone cancelled");
+        return;
+      }
+      const withCredentials = new URL(repoUri);
+      withCredentials.username = encodeURIComponent(user);
+      withCredentials.password = encodeURIComponent(token);
+      result = await attempt(withCredentials);
+      if (result === "auth") {
+        vscode.window.showErrorMessage(`Could not clone ${name}: the access was not accepted.`);
+        return;
+      }
+      if (result === "cloned") {
+        // Losing the cache only means git asks again on the first push.
+        await storeCredentials(workspacePath, repoUri, user, token).catch((e) =>
+          console.warn(`Could not cache the credentials: ${e?.message}`),
+        );
+      }
+    }
+    if (result === "cloned") {
+      vscode.window.showInformationMessage(`Cloned ${name} into the workspace.`);
+      // The Git extension watches the workspace; this only speeds up picking the repository up.
+      await Promise.resolve(vscode.commands.executeCommand("git.refresh")).catch(() => {});
+    }
+  } catch (e: any) {
+    // Host and name only: the raw git error can contain the URL with its credentials.
+    console.error(e?.message);
+    vscode.window.showErrorMessage(
+      `Could not clone ${name}. Check the URL and your access token, then try again.`,
+    );
+  }
 }
 
 export async function initTheia() {

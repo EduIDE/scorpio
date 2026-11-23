@@ -6,6 +6,14 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+### Features
+
+- "Clone Repository into Workspace" (command `scorpio.workspace.cloneRepository`, also a button in the empty Source Control view) clones a repository into the workspace root, where its `.vscode` config is found, instead of a subfolder. It only runs in an empty workspace, asks for a username and access token when the repository is private, and leaves `origin` without credentials. The token goes to the configured git credential helper, in the standalone images the in-memory cache for 3 hours, so the first push does not ask again ([#235](https://github.com/EduIDE/scorpio/pull/235))
+
+### Changes
+
+- The hint for a private repository points to "Clone Repository" in Source Control instead of `git clone` in the terminal ([#235](https://github.com/EduIDE/scorpio/pull/235))
+
 ## [3.3.0] - 2026-11-20
 
 ### Features

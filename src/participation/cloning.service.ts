@@ -1,5 +1,6 @@
 import { simpleGit, type SimpleGit } from "simple-git";
 import { tmpdir } from "os";
+import { spawn } from "child_process";
 import * as path from "path";
 import * as fs from "fs/promises";
 
@@ -12,6 +13,8 @@ type CloneOptions = {
   ref?: string;
   /** Called when the ref cannot be checked out; the clone is kept on the default branch. */
   onRefFailed?: (ref: string) => void;
+  /** Keep the credentials of the URL in origin (the Artemis path needs them); false leaves a bare origin. Defaults to true. */
+  keepCredentialsInOrigin?: boolean;
 };
 
 type PreservedWorkspaceEntry = {
@@ -99,6 +102,32 @@ async function withCredentialHelper<T>(
 }
 
 /**
+ * Hands the credentials to the user's own credential helper (the in-memory cache in the standalone images), so the
+ * first push does not ask again. Passed on stdin, never in arguments; without a configured helper git keeps nothing.
+ */
+export async function storeCredentials(
+  cwd: string,
+  cloneUrl: URL,
+  user: string,
+  password: string,
+): Promise<void> {
+  const protocol = cloneUrl.protocol.replace(/:$/, "");
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("git", ["credential", "approve"], {
+      cwd,
+      stdio: ["pipe", "ignore", "ignore"],
+    });
+    child.on("error", reject);
+    child.on("close", (code) =>
+      code === 0 ? resolve() : reject(new Error(`git credential approve exited ${code}`)),
+    );
+    child.stdin.end(
+      `protocol=${protocol}\nhost=${cloneUrl.host}\nusername=${user}\npassword=${password}\n\n`,
+    );
+  });
+}
+
+/**
  * Points origin at the URL as given, credentials included: the Artemis extension pushes with a plain `git push`
  * and relies on them. Known limitation: the token stays in .git/config on the workspace volume.
  */
@@ -118,6 +147,7 @@ export async function cloneByGivenURL(
       options.preservedPaths ?? THEIA_PRESERVED_PATHS,
       options.ref,
       options.onRefFailed,
+      options.keepCredentialsInOrigin ?? true,
     );
   }
 
@@ -128,7 +158,10 @@ export async function cloneByGivenURL(
 
   try {
     await withCredentialHelper(user, password, destinationPath, (git) => git.clone(url, clonePath));
-    await setOrigin(clonePath, cloneUrl);
+    await setOrigin(
+      clonePath,
+      (options?.keepCredentialsInOrigin ?? true) ? cloneUrl : new URL(url),
+    );
   } catch (e: any) {
     throw new Error(`Error cloning repository: ${e.message}`);
   }
@@ -142,6 +175,7 @@ async function cloneIntoWorkspaceRoot(
   preservedPaths: string[] = [],
   ref?: string,
   onRefFailed?: (ref: string) => void,
+  keepCredentialsInOrigin = true,
 ): Promise<string> {
   const backupRoot = await fs.mkdtemp(path.join(tmpdir(), "scorpio-workspace-clone-"));
   const preservedEntries = await movePreservedWorkspaceEntries(
@@ -158,7 +192,7 @@ async function cloneIntoWorkspaceRoot(
 
     const { url, user, password } = splitCredentials(cloneUrl);
     await withCredentialHelper(user, password, workspacePath, (git) => git.clone(url, "."));
-    await setOrigin(workspacePath, cloneUrl);
+    await setOrigin(workspacePath, keepCredentialsInOrigin ? cloneUrl : new URL(url));
     cloneSucceeded = true;
     if (ref) {
       try {

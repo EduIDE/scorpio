@@ -75,6 +75,18 @@
         "command": "scorpio.restart",
         "category": "Scorpio",
         "title": "Restart Extension"
+      },
+      {
+        "command": "scorpio.workspace.cloneRepository",
+        "category": "Scorpio",
+        "title": "Clone Repository into Workspace"
+      }
+    ],
+    "viewsWelcome": [
+      {
+        "view": "scm",
+        "contents": "[Clone Repository](command:scorpio.workspace.cloneRepository)",
+        "when": "config.git.enabled && !git.missing && scm.providerCount == 0"
       }
     ]
   },
