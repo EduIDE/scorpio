@@ -6,6 +6,15 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+### Fixes
+
+- With Git accounts the session repository is found again after a restart: the check for an existing clone read `origin` through `git remote -v`, which applies the `url.<base>.insteadOf` rewrite of the local Git agent, so it never matched `GIT_URI` and the exercise was reported as "not cloned because the workspace contains files"
+
+### Changes
+
+- When Git refuses a clone with `remote error: <line>` (the Git accounts proxy: connect an account, no access, approve the repository, no Git LFS), the notification shows that line as it is. A link in it gets an "Open" button. This also applies to "Clone Repository", which does not ask for a token then
+- The notification after a remote error in the automatic clone has a "Retry" button, so the student can retry after connecting an account or approving the repository without restarting the session
+
 ## [3.4.1] - 2026-11-23
 
 ### Fixes

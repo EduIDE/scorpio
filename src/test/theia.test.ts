@@ -8,7 +8,7 @@ import { hostname, tmpdir } from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { beforeEach, test } from "node:test";
-import { cloneFailureMessage, initTheia, theiaEnv } from "../theia/theia";
+import { cloneFailureMessage, cloneRepositoryIntoWorkspace, initTheia, theiaEnv } from "../theia/theia";
 
 const newDir = () => mkdtempSync(path.join(tmpdir(), "theia-"));
 const git = (cwd: string, ...args: string[]) =>
@@ -492,3 +492,141 @@ test("a ref that cannot be checked out leaves the clone in place and warns the s
     'Could not check out "does-not-exist". The default branch is checked out instead.',
   ]);
 });
+
+// The lines the Git accounts proxy sends back (internal/gitapi/gitapi.go and internal/gitproxy in the control plane).
+const proxyLines = {
+  connect: "Connect your GitHub account to open this repository: https://eduide.example",
+  notFound: "github.com/org/repo: not found, or your GitHub account has no access",
+  approve:
+    "This session may not use github.com/org/repo yet. Approve it here: https://eduide.example/?session=s1&approveRepo=https%3A%2F%2Fgithub.com%2Forg%2Frepo&access=read",
+  lfs: "Git LFS is not supported through EduIDE.",
+};
+
+const pkt = (text: string) => (text.length + 4).toString(16).padStart(4, "0") + text;
+
+// Answers like the proxy: a smart http response whose only content is an ERR line, so git prints "fatal: remote error: <line>".
+async function startRefusingRemote(line: string) {
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "application/x-git-upload-pack-advertisement" });
+    res.end(pkt("# service=git-upload-pack\n") + "0000" + pkt(`ERR ${line}`));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return { server, url: new URL(`http://127.0.0.1:${port}/org/repo.git`) };
+}
+
+for (const [name, line] of Object.entries(proxyLines)) {
+  test(`the proxy line "${name}" reaches the student as it is, whatever the link source`, () => {
+    const error = `Error cloning repository into workspace root: Cloning into '.'...\nfatal: remote error: ${line}\n`;
+    for (const source of [undefined, "artemis", "external"] as const) {
+      assert.equal(cloneFailureMessage(new URL("https://github.com/org/repo.git"), error, source), line);
+    }
+  });
+}
+
+test("a remote error behind an Artemis link with credentials keeps the Artemis message", () => {
+  const message = cloneFailureMessage(
+    new URL("https://user:token@artemis.example/git/x.git"),
+    "fatal: remote error: something with token",
+    "artemis",
+  );
+  assert.ok(!message.includes("token"));
+  assert.match(message, /^Could not clone x\./);
+});
+
+test("a refused clone shows the proxy line with an Open button and no credential prompt", async () => {
+  const { server, url } = await startRefusingRemote(proxyLines.connect);
+  theiaEnv.GIT_URI = url;
+  theiaEnv.GIT_SOURCE = "external";
+  vscodeStub.window.errorActions.length = 0;
+  vscodeStub.env.opened.length = 0;
+  vscodeStub.window.errorChoice = "Open";
+  try {
+    await initTheia();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  } finally {
+    server.close();
+    server.closeAllConnections();
+  }
+
+  assert.deepEqual(vscodeStub.window.errors, [proxyLines.connect]);
+  assert.deepEqual(vscodeStub.window.errorActions, [["Retry", "Open"]]);
+  assert.deepEqual(vscodeStub.env.opened, ["https://eduide.example"]);
+  assert.equal(vscodeStub.window.prompts.length, 0);
+});
+
+test("Retry after a refusal clones once access exists", async () => {
+  const served = newDir();
+  const exercise = newExerciseRepo();
+  git(served, "clone", "-q", "--bare", exercise.pathname, "org/repo.git");
+  git(path.join(served, "org/repo.git"), "update-server-info");
+  // The first request is refused, as before the student approved the repository; every later one works.
+  let refuse = true;
+  const server = createServer((req, res) => {
+    if (refuse) {
+      refuse = false;
+      res.writeHead(200, { "Content-Type": "application/x-git-upload-pack-advertisement" });
+      res.end(pkt("# service=git-upload-pack\n") + "0000" + pkt(`ERR ${proxyLines.lfs}`));
+      return;
+    }
+    const file = path.join(served, req.url!.split("?")[0]);
+    existsSync(file) ? res.end(readFileSync(file)) : res.writeHead(404).end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  theiaEnv.GIT_URI = new URL(`http://127.0.0.1:${(server.address() as AddressInfo).port}/org/repo.git`);
+  vscodeStub.window.errorActions.length = 0;
+  vscodeStub.window.errorChoice = "Retry";
+  try {
+    await initTheia();
+    for (let i = 0; i < 100 && !existsSync(path.join(workspace, "README.md")); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  } finally {
+    server.close();
+    server.closeAllConnections();
+  }
+
+  assert.equal(existsSync(path.join(workspace, "README.md")), true);
+});
+
+test("a clone through an insteadOf rewrite creates the workspace, and a restart reuses it", async () => {
+  const remotes = newDir();
+  const exercise = newExerciseRepo();
+  git(remotes, "clone", "-q", "--bare", exercise.pathname, "org/repo.git");
+  // Like the eduide-session extension: the provider host is rewritten to a local address.
+  git(process.env.HOME!, "config", "--global", `url.${pathToFileURL(remotes).href}/.insteadOf`, "https://git.example/");
+  theiaEnv.GIT_URI = new URL("https://git.example/org/repo.git");
+
+  await initTheia();
+
+  assert.equal(existsSync(path.join(workspace, "README.md")), true);
+  assert.equal(git(workspace, "config", "remote.origin.url"), "https://git.example/org/repo.git");
+  assert.deepEqual(vscodeStub.window.errors, []);
+
+  writeFileSync(path.join(workspace, "Solution.java"), "student work");
+  await initTheia();
+
+  assert.equal(existsSync(path.join(workspace, "Solution.java")), true);
+  assert.deepEqual(vscodeStub.window.warnings, []);
+});
+
+for (const line of [proxyLines.notFound, proxyLines.approve]) {
+  test(`"Clone Repository" shows the proxy line and never asks for a token: ${line.slice(0, 20)}`, async () => {
+    const { server, url } = await startRefusingRemote(line);
+    vscodeStub.window.prompts.length = 0;
+    vscodeStub.window.inputs.length = 0;
+    vscodeStub.window.inputs.push(url.toString());
+    vscodeStub.window.errorActions.length = 0;
+    vscodeStub.window.errorChoice = undefined;
+    try {
+      await cloneRepositoryIntoWorkspace(["https:", "http:"]);
+    } finally {
+      server.close();
+      server.closeAllConnections();
+    }
+
+    assert.deepEqual(vscodeStub.window.errors, [line]);
+    assert.equal(vscodeStub.window.prompts.length, 1);
+    assert.deepEqual(vscodeStub.window.errorActions, [line.includes("https://") ? ["Open"] : []]);
+  });
+}
