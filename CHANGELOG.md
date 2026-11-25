@@ -6,6 +6,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+### Changes
+
+- Docs and comments follow the [EduIDE glossary](https://eduide.github.io/Docs/glossary): launch data from the control plane agent instead of "the operator injects", idle instances instead of warm-pool instances, "Gradle warmup" instead of "pre-warming" (env var and option names are unchanged)
+
 ## [3.4.1] - 2026-11-23
 
 ### Fixes

@@ -2,7 +2,7 @@
   "name": "artemis-scorpio",
   "displayName": "Scorpio - EduIDE workspace bootstrap",
   "version": "0.0.0",
-  "description": "Prepares an EduIDE workspace at session start: clones GIT_URI or copies a TEMPLATE into the empty workspace, sets the git identity and pre-warms Gradle.",
+  "description": "Prepares an EduIDE workspace at session start: clones GIT_URI or copies a TEMPLATE into the empty workspace, sets the git identity and warms up Gradle.",
   "license": "MIT",
   "private": true,
   "categories": [

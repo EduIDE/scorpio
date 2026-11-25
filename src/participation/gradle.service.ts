@@ -5,12 +5,12 @@ import * as vscode from "vscode";
 import { GradlePrewarmLevel } from "../theia/env-strategy";
 
 /**
- * Gradle invocation per prewarm level. Each higher level warms one more phase of
- * the student's first build during session startup (see the prewarming levels L1-L4):
+ * Gradle invocation per warmup level. Each higher level warms one more phase of
+ * the student's first build during session startup (see the warmup levels L1-L4):
  *  - "daemon" (L1): start the Gradle daemon so it is warm and reused.
  *  - "deps"   (L3): additionally configure the build and resolve/download dependencies.
  *  - "full"   (L4): additionally compile, leaving the first build near-instant.
- * "off" disables prewarming and is handled before this map is used.
+ * "off" disables the Gradle warmup and is handled before this map is used.
  */
 const PREWARM_ARGS: Record<Exclude<GradlePrewarmLevel, "off">, string[]> = {
   daemon: ["--daemon", "help"],
@@ -19,7 +19,7 @@ const PREWARM_ARGS: Record<Exclude<GradlePrewarmLevel, "off">, string[]> = {
 };
 
 /**
- * Side effects the prewarm performs, grouped behind a seam so tests can assert the confirmation
+ * Side effects the warmup performs, grouped behind a seam so tests can assert the confirmation
  * gate (when it is active, no build starts without the student's confirmation) without touching
  * the real filesystem, child_process or VS Code.
  */
@@ -31,7 +31,7 @@ export type GradlePrewarmEffects = {
 };
 
 /**
- * Asks the student whether the repository's Gradle wrapper may be executed to prewarm the
+ * Asks the student whether the repository's Gradle wrapper may be executed to warm up the
  * build. Used unless GRADLE_PREWARM_AUTO_CONFIRM is true. The prompt is non-modal and
  * defaults to "no": if the student ignores it nothing runs, removing the silent code-execution
  * property for deployments that have not opted in to auto-confirm.
@@ -66,19 +66,19 @@ export const defaultGradlePrewarmEffects: GradlePrewarmEffects = {
 };
 
 /**
- * Pre-warms the Gradle build in the background after cloning a repository, so the student's
+ * Warms up the Gradle build in the background after cloning a repository, so the student's
  * first build can skip the phases warmed here.
  *
  * Security: `./gradlew` and the bundled Gradle wrapper jar are repository-controlled, so a
- * tampered exercise template could run arbitrary code during prewarm. The behavior is governed
+ * tampered exercise template could run arbitrary code during the warmup. The behavior is governed
  * by `autoConfirm` (the GRADLE_PREWARM_AUTO_CONFIRM env var):
  * - `false` (default): the student must explicitly confirm before the wrapper runs, and
  *   confirmation defaults to "no".
- * - `true`: the prewarm runs automatically. Only for deployments that trust their exercise
+ * - `true`: the warmup runs automatically. Only for deployments that trust their exercise
  *   templates, where the long first build matters more than the risk.
  *
  * Silently skips (no prompt, no build) if:
- * - Prewarming is disabled (`level` is "off")
+ * - The Gradle warmup is disabled (`level` is "off")
  * - Running on Windows (not a supported environment)
  * - The project does not contain a `gradlew` file (not a Gradle project)
  */
