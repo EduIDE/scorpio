@@ -71,9 +71,12 @@ async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promi
   try {
     // The raw config value, not `git remote -v`: that one applies url.<base>.insteadOf, which the Git accounts
     // setup uses to send provider hosts to the local agent, so it would never equal GIT_URI.
+    // --get-all and the first line: with several origin URLs git fetches from the first, `--get` returns the last.
     const origin = (
-      await simpleGit(workspacePath).raw(["config", "--get", "remote.origin.url"])
-    ).trim();
+      await simpleGit(workspacePath).raw(["config", "--get-all", "remote.origin.url"])
+    )
+      .split("\n")[0]
+      .trim();
     if (!origin) {
       return false;
     }
@@ -104,7 +107,11 @@ const NETWORK_FAILURE =
 // The line a Git remote sends back for a refused request (`fatal: remote error: <line>`). The Git accounts proxy
 // answers this way instead of with 401, and its line already says what the student has to do, so it is shown as is.
 function remoteErrorLine(error: string): string | undefined {
-  return /remote error: (.+)/.exec(error)?.[1].trim();
+  // Userinfo inside a URL of the line is dropped: the remote may echo a link with credentials.
+  return /remote error: (.+)/
+    .exec(error)?.[1]
+    .trim()
+    .replace(/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, "$1");
 }
 
 export function cloneFailureMessage(

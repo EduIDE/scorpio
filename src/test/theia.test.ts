@@ -524,6 +524,14 @@ for (const [name, line] of Object.entries(proxyLines)) {
   });
 }
 
+test("credentials inside the remote line are not shown", () => {
+  const message = cloneFailureMessage(
+    new URL("https://git.example/org/repo.git"),
+    "fatal: remote error: denied https://user:secret@example.org/repo and https://example.org/approve",
+  );
+  assert.equal(message, "denied https://example.org/repo and https://example.org/approve");
+});
+
 test("a remote error behind an Artemis link with credentials keeps the Artemis message", () => {
   const message = cloneFailureMessage(
     new URL("https://user:token@artemis.example/git/x.git"),
@@ -612,6 +620,18 @@ test("a clone through an insteadOf rewrite creates the workspace, and a restart 
   await initTheia();
 
   assert.equal(existsSync(path.join(workspace, "Solution.java")), true);
+  assert.deepEqual(vscodeStub.window.warnings, []);
+});
+
+test("a restart reuses a clone whose origin has several URLs, comparing the first", async () => {
+  const exercise = newExerciseRepo();
+  git(workspace, "clone", "-q", exercise.pathname, ".");
+  git(workspace, "config", "remote.origin.url", "https://git.example/org/repo.git");
+  git(workspace, "config", "--add", "remote.origin.url", "https://git.example/other/repo.git");
+  theiaEnv.GIT_URI = new URL("https://git.example/org/repo.git");
+
+  await initTheia();
+
   assert.deepEqual(vscodeStub.window.warnings, []);
 });
 
