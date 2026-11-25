@@ -571,7 +571,11 @@ test("Retry after a refusal clones once access exists", async () => {
     }
     const file = path.resolve(served, "." + decodeURIComponent(req.url!.split("?")[0]));
     // Only serve files below the temp repository directory.
-    existsSync(file) && file.startsWith(served + path.sep) ? res.end(readFileSync(file)) : res.writeHead(404).end();
+    if (!file.startsWith(served + path.sep)) {
+      res.writeHead(404).end();
+      return;
+    }
+    existsSync(file) ? res.end(readFileSync(file)) : res.writeHead(404).end();
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   theiaEnv.GIT_URI = new URL(`http://127.0.0.1:${(server.address() as AddressInfo).port}/org/repo.git`);
