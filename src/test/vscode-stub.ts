@@ -49,10 +49,25 @@ export const vscodeStub = {
     showWarningMessage(message: string) {
       this.warnings.push(message);
     },
-    showErrorMessage(message: string) {
+    // What the student clicks on the next error notification, if it has buttons.
+    errorChoice: undefined as string | undefined,
+    errorActions: [] as string[][],
+    showErrorMessage(message: string, ...actions: string[]) {
       this.errors.push(message);
+      this.errorActions.push(actions);
+      const choice = this.errorChoice;
+      this.errorChoice = undefined;
+      return Promise.resolve(choice);
     },
   },
+  env: {
+    opened: [] as string[],
+    openExternal(uri: { toString(): string }) {
+      this.opened.push(uri.toString());
+      return Promise.resolve(true);
+    },
+  },
+  Uri: { parse: (value: string) => ({ toString: () => value }) },
   ProgressLocation: { Notification: 15 },
   commands: { executeCommand: (..._args: unknown[]): unknown => undefined },
   extensions: { getExtension: (_id: string): unknown => undefined },

@@ -69,13 +69,18 @@ async function isRepoAlreadyCloned(workspacePath: string, targetUri: URL): Promi
   }
 
   try {
-    const git = simpleGit(workspacePath);
-    const remotes = await git.getRemotes(true);
-    const origin = remotes.find((r) => r.name === "origin");
-    if (!origin?.refs.fetch) {
+    // The raw config value, not `git remote -v`: that one applies url.<base>.insteadOf, which the Git accounts
+    // setup uses to send provider hosts to the local agent, so it would never equal GIT_URI.
+    // --get-all and the first line: with several origin URLs git fetches from the first, `--get` returns the last.
+    const origin = (
+      await simpleGit(workspacePath).raw(["config", "--get-all", "remote.origin.url"])
+    )
+      .split("\n")[0]
+      .trim();
+    if (!origin) {
       return false;
     }
-    if (normalizeRepoUrl(origin.refs.fetch) !== normalizeRepoUrl(targetUri.toString())) {
+    if (normalizeRepoUrl(origin) !== normalizeRepoUrl(targetUri.toString())) {
       return false;
     }
   } catch {
@@ -99,11 +104,26 @@ const AUTH_FAILURE =
 const NETWORK_FAILURE =
   /Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Network is unreachable/i;
 
+// The line a Git remote sends back for a refused request (`fatal: remote error: <line>`). The Git accounts proxy
+// answers this way instead of with 401, and its line already says what the student has to do, so it is shown as is.
+function remoteErrorLine(error: string): string | undefined {
+  // Userinfo inside a URL of the line is dropped: the remote may echo a link with credentials.
+  return /remote error: (.+)/
+    .exec(error)?.[1]
+    .trim()
+    .replace(/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, "$1");
+}
+
 export function cloneFailureMessage(
   repoUri: URL,
   error: string,
   source = theiaEnv.GIT_SOURCE,
 ): string {
+  // Not for a link with credentials (Artemis): its failures keep their own messages.
+  const remoteLine = repoUri.username || repoUri.password ? undefined : remoteErrorLine(error);
+  if (remoteLine) {
+    return remoteLine;
+  }
   // Only a link from outside Artemis can point at a private repository; an Artemis link (with credentials, or from a
   // landing page that sets no GIT_SOURCE) failed for another reason, so the hint would mislead.
   if (source === "external" && !repoUri.username && !repoUri.password && AUTH_FAILURE.test(error)) {
@@ -130,6 +150,22 @@ export function cloneFailureMessage(
 // Host and path only, so no credential from GIT_URI can reach a message.
 function repoDisplayName(repoUri: URL): string {
   return path.basename(repoUri.pathname, ".git") || repoUri.host;
+}
+
+// Shows a failed clone. A link in the message (connect an account, approve the repository) gets an "Open" button,
+// and onRetry adds a "Retry" button, so the student does not need to restart the session afterwards.
+function showCloneError(message: string, onRetry?: () => Promise<unknown>) {
+  const link = /https:\/\/\S+/.exec(message)?.[0];
+  const actions = [...(onRetry ? ["Retry"] : []), ...(link ? ["Open"] : [])];
+  void Promise.resolve(vscode.window.showErrorMessage(message, ...actions)).then((choice) => {
+    if (choice === "Open" && link) {
+      return vscode.env.openExternal(vscode.Uri.parse(link));
+    }
+    if (choice === "Retry") {
+      return onRetry?.();
+    }
+    return undefined;
+  });
 }
 
 export function validateRepoUrl(value: string): string | undefined {
@@ -266,6 +302,12 @@ export async function cloneRepositoryIntoWorkspace(credentialSchemes = ["https:"
   } catch (e: any) {
     // Host and name only: the raw git error can contain the URL with its credentials.
     console.error(e?.message);
+    const remoteLine = remoteErrorLine(String(e?.message));
+    if (remoteLine && !repoUri.username && !repoUri.password) {
+      // The student runs the command again after following the link.
+      showCloneError(remoteLine);
+      return;
+    }
     vscode.window.showErrorMessage(
       `Could not clone ${name}. Check the URL and your access token, then try again.`,
     );
@@ -332,7 +374,12 @@ export async function initTheia() {
       } catch (e: any) {
         // Still write the git identity below, or a clone retried by hand commits as the wrong user.
         console.error(e.message);
-        vscode.window.showErrorMessage(cloneFailureMessage(repoUri, String(e?.message ?? e)));
+        const error = String(e?.message ?? e);
+        // After a remote error (connect an account, approve the repository) the same start can work without a restart.
+        showCloneError(
+          cloneFailureMessage(repoUri, error),
+          remoteErrorLine(error) ? initTheia : undefined,
+        );
       }
     });
 
