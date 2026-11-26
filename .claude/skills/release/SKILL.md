@@ -108,7 +108,7 @@ not for the people who wrote the code:
 
 ### Dependencies
 
-- EduIDE-Cloud 1.3.0 -> 1.4.0: operator metrics ([release](https://github.com/EduIDE/EduIDE-Cloud/releases/tag/v1.4.0))
+- EduIDE-control-plane 0.2.2 -> 0.2.3: usage recording rules ([release](https://github.com/EduIDE/EduIDE-control-plane/releases/tag/v0.2.3))
 ```
 
 Rules:
