@@ -4,8 +4,8 @@
 
 /**
  * Controls how much of the first Gradle build is warmed up in the background at
- * session startup (see the prewarming levels L1-L4):
- *  - "off":    no prewarming.
+ * session startup (see the warmup levels L1-L4):
+ *  - "off":    no Gradle warmup.
  *  - "daemon": start the Gradle daemon so it is warm and reused (L1).
  *  - "deps":   also configure the build and resolve/download dependencies (L3).
  *  - "full":   also compile, leaving the student's first build near-instant (L4).
@@ -47,7 +47,7 @@ export const ENV_KEYS = [
 ] as const satisfies Array<string>;
 
 /**
- * Default prewarm level when the environment variable is unset. Warming the
+ * Default warmup level when the environment variable is unset. Warming the
  * daemon is cheap and benefits every Gradle session, so it is the safe default.
  */
 export const DEFAULT_GRADLE_PREWARM: GradlePrewarmLevel = "daemon";
@@ -96,7 +96,7 @@ export function parseGitRef(value: string | undefined): string | undefined {
 }
 
 /**
- * Prewarming runs the Gradle wrapper of the cloned repository, which is code the student did not write.
+ * The Gradle warmup runs the Gradle wrapper of the cloned repository, which is code the student did not write.
  * It asks the student first unless the deployment explicitly sets GRADLE_PREWARM_AUTO_CONFIRM to true,
  * for platforms that trust their exercise templates.
  */
@@ -105,12 +105,12 @@ export function parseGradlePrewarmAutoConfirm(value: string | undefined): boolea
 }
 
 /**
- * Whether the data bridge has delivered the session's environment. The operator injects all of a session's variables
- * in one request, so the first of them to show up means all have.
+ * Whether the session extension has delivered the launch data. The control plane's agent hands over all of a session's
+ * variables in one request, so the first of them to show up means all have.
  *
  * ARTEMIS_URL is deliberately not required: sessions opened from somewhere other than Artemis (e.g. a GitHub link
  * through the landing page) carry GIT_URI but no ARTEMIS_URL, and waiting for it made Scorpio time out and fall back to
- * the process environment, where a warm-pool instance has no GIT_URI, so nothing was cloned.
+ * the process environment, where an idle instance has no GIT_URI, so nothing was cloned.
  */
 export function isDataBridgeEnvComplete(env: Record<string, string | undefined>): boolean {
   return Boolean(env["GIT_URI"] || env["TEMPLATE"] || env["THEIA"]);

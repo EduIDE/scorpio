@@ -52,7 +52,7 @@ export class ProcessEnvStrategy implements TheiaEnvStrategy {
  * Used when SCORPIO_THEIA_ENV_STRATEGY=data-bridge.
  */
 export class DataBridgeStrategy implements TheiaEnvStrategy {
-  // The Go control plane ships eduide.eduide-session, the operator ships tum-aet.data-bridge.
+  // The control plane ships eduide.eduide-session, EduIDE 2.x shipped tum-aet.data-bridge.
   // Both expose the same commands, so the first one that is installed wins.
   private static readonly EXTENSION_IDS = ["eduide.eduide-session", "tum-aet.data-bridge"];
   private static readonly COMMAND = "dataBridge.getEnv";
@@ -102,7 +102,7 @@ export class DataBridgeStrategy implements TheiaEnvStrategy {
       const env = await this.fetchEnvironmentVariables();
       lastEnv = env;
 
-      // The operator delivers a session's variables in one injection, so the first one
+      // The agent delivers a session's launch data in one request, so the first one
       // to arrive means the rest are there too (see isDataBridgeEnvComplete).
       if (isDataBridgeEnvComplete(env)) {
         this.outputChannel.appendLine("Environment variables received from bridge");
